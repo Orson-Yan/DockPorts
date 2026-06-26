@@ -4,7 +4,7 @@
 DockPorts - 容器化NAS端口记录工具
 主要功能：
 1. 通过Docker API监控容器端口映射
-2. 通过netstat监控主机端口使用情况
+2. 通过psutil监控主机端口使用情况
 3. 可视化展示端口使用状态
 """
 
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 import os
 import socket
 import time
-from functools import lru_cache, wraps
+from functools import wraps
 import argparse
 
 # 配置日志
@@ -341,8 +341,9 @@ class PortMonitor:
             
             for container in containers:
                 container_name = container.name
+                image_name = container.image.tags[0] if container.image.tags else ''
                 ports = container.attrs.get('NetworkSettings', {}).get('Ports', {})
-                
+
                 for container_port, host_bindings in ports.items():
                     if host_bindings:
                         for binding in host_bindings:
@@ -351,6 +352,7 @@ class PortMonitor:
                                 'port': host_port,
                                 'container_name': container_name,
                                 'container_port': container_port,
+                                'image': image_name,
                                 'type': 'docker_mapped'
                             })
                             logger.debug(f"发现映射端口: {host_port} -> {container_name}:{container_port}")
@@ -381,7 +383,16 @@ class PortMonitor:
         
         try:
             # 使用 psutil 获取监听端口信息（跨平台，无需 netstat）
-            for conn in psutil.net_connections(kind='inet'):
+            all_conns = psutil.net_connections(kind='inet')
+
+            # 统计每个端口的活跃连接数（仅 ESTABLISHED，不含监听/无状态 socket）
+            port_connection_count = {}
+            for conn in all_conns:
+                if conn.laddr and conn.status == psutil.CONN_ESTABLISHED:
+                    p = conn.laddr.port
+                    port_connection_count[p] = port_connection_count.get(p, 0) + 1
+
+            for conn in all_conns:
                 # TCP 仅取 LISTEN 状态；UDP 无连接状态(CONN_NONE)，全部收集
                 if conn.type == socket.SOCK_STREAM and conn.status != psutil.CONN_LISTEN:
                     continue
@@ -415,7 +426,8 @@ class PortMonitor:
                         'ip_version': ip_version,
                         'address': local_address,
                         'service_name': self.get_service_name(port),
-                        'container_name': container_name
+                        'container_name': container_name,
+                        'connection_count': port_connection_count.get(port, 0)
                     }
 
                 logger.debug(f"发现主机使用端口: {port} ({protocol_type}/{ip_version})")
@@ -440,7 +452,7 @@ class PortMonitor:
                 
                 # 去重并排序
                 protocol_list = sorted(list(set(protocol_list)))
-                info['protocol'] = '/'.join(protocol_list)
+                info['protocol'] = ','.join(protocol_list)
                 
                 # 移除单独的ip_version字段，信息已包含在protocol中
                 del info['ip_version']
@@ -701,6 +713,7 @@ class PortMonitor:
                     'process': f"Docker: {docker_info['container_name']}",
                     'image': docker_info.get('image', ''),
                     'container_port': docker_info['container_port'],
+                    'connection_count': host_ports_info.get(port, {}).get('connection_count', 0),
                     'service_name': config_service_name or docker_info['container_name']
                 }
             else:
@@ -725,6 +738,7 @@ class PortMonitor:
                     'protocol': protocol,
                     'service_name': config_service_name or host_info.get('service_name', '未知服务'),
                     'container': host_info.get('container_name'),
+                    'connection_count': host_info.get('connection_count', 0),
                     'is_host_network': is_host_container
                 }
             port_data_list.append(card_data)
@@ -835,11 +849,12 @@ class PortMonitor:
             port_cards.append(gap_card)
         
         # 统计Docker容器数量
-        docker_container_count = len(set(
-            p.get('container', p.get('container_name', '')) 
-            for p in port_cards 
+        docker_container_names = sorted(set(
+            p.get('container', p.get('container_name', ''))
+            for p in port_cards
             if p.get('source') == 'docker' and p.get('container')
         ))
+        docker_container_count = len(docker_container_names)
         
         # 计算可用端口数量（基于指定的端口范围）
         total_ports_in_range = end_port - start_port + 1
@@ -881,6 +896,7 @@ class PortMonitor:
             'tcp_used': len(tcp_ports),
             'udp_used': len(udp_ports),
             'docker_containers': docker_container_count,
+            'docker_container_names': docker_container_names,
             'hidden_ports': hidden_ports,
             'protocol_filter': protocol_filter
         }
@@ -970,6 +986,10 @@ def api_ports():
         # 提供内网/外网地址，供前端拼接端口跳转链接
         port_data['host_ip'] = get_effective_host()
         port_data['external_host'] = (settings.get('external_host') or '').strip()
+
+        # 服务端时间与 Docker 连接状态，供前端显示
+        port_data['server_time'] = datetime.now().strftime('%H:%M:%S')
+        port_data['docker_connected'] = port_monitor.docker_client is not None
 
         # 处理搜索参数
         search = request.args.get('search', '').strip().lower()
@@ -1287,6 +1307,10 @@ def api_refresh():
         # 重新初始化Docker客户端
         port_monitor.__init__()
         port_data = port_monitor.get_port_analysis()
+        port_data['host_ip'] = get_effective_host()
+        port_data['external_host'] = (settings.get('external_host') or '').strip()
+        port_data['server_time'] = datetime.now().strftime('%H:%M:%S')
+        port_data['docker_connected'] = port_monitor.docker_client is not None
         return jsonify({
             'success': True,
             'data': port_data,

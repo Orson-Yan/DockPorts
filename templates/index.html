@@ -1219,6 +1219,302 @@
                 margin-bottom: 1rem;
             }
         }
+
+        /* ===== 统计栏卡片化 ===== */
+        .stat-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.6rem 1rem;
+            min-width: 92px;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .stat-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        }
+        .stat-number {
+            font-size: 1.6rem;
+        }
+
+        /* ===== Docker 连接状态 + 刷新时间 ===== */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.6rem;
+            flex-wrap: wrap;
+        }
+        #dockerStatus {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.8rem;
+            color: #718096;
+        }
+        .docker-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+            background: #cbd5e0;
+        }
+        .docker-dot.connected { background: #48bb78; box-shadow: 0 0 6px rgba(72,187,120,0.6); }
+        .docker-dot.disconnected { background: #e53e3e; box-shadow: 0 0 6px rgba(229,62,62,0.6); }
+        #lastRefreshTime {
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+
+        /* ===== 自动刷新 + 排序下拉 ===== */
+        .toolbar-select {
+            padding: 0.4rem 0.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            background: white;
+            color: #4a5568;
+            cursor: pointer;
+        }
+        .toolbar-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .auto-refresh-group {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        #autoRefreshCountdown {
+            font-size: 0.8rem;
+            color: #667eea;
+            font-weight: 600;
+            min-width: 2.4rem;
+        }
+        .sort-control {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .sort-control label {
+            font-size: 0.8rem;
+            color: #718096;
+            white-space: nowrap;
+        }
+
+        /* ===== 端口范围预设按钮 ===== */
+        .port-presets {
+            margin-top: 0.75rem;
+        }
+        .port-presets .presets-label {
+            font-size: 0.8rem;
+            color: #718096;
+            display: block;
+            margin-bottom: 0.4rem;
+        }
+        .preset-buttons {
+            display: flex;
+            gap: 0.3rem;
+            flex-wrap: wrap;
+        }
+        .preset-btn {
+            flex: 1;
+            padding: 0.3rem 0.4rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: #f7fafc;
+            color: #4a5568;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .preset-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #5a67d8;
+        }
+
+        /* ===== 按容器筛选 ===== */
+        #containerFilterSection {
+            margin-top: 1.5rem;
+        }
+        #containerFilterSection h4 {
+            margin-bottom: 0.6rem;
+            color: #4a5568;
+            font-size: 1rem;
+        }
+        #containerFilterList {
+            list-style: none;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        #containerFilterList .tab-link {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        /* ===== 连接数 / 镜像名 ===== */
+        .conn-count {
+            font-size: 0.7rem;
+            color: #a0aec0;
+        }
+        .image-name {
+            font-size: 0.65rem;
+            color: #a0aec0;
+            margin-top: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        /* ===== 端口变更高亮动画 ===== */
+        @keyframes highlightNew {
+            0% { background-color: #c6f6d5; }
+            100% { background-color: transparent; }
+        }
+        .port-card.highlight-new,
+        .port-list-item.highlight-new {
+            animation: highlightNew 2.5s ease-out;
+        }
+
+        /* ===== 端口卡片 hover 增强 ===== */
+        .port-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+        }
+        .port-card.used:hover { border-color: #48bb78; }
+        .port-card.docker:hover { border-color: #4299e1; }
+
+        /* ===== 深色模式（附加覆盖，浅色样式不变） ===== */
+        .dark-mode-btn {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%) !important;
+        }
+        body.dark {
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+        body.dark .header {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+        }
+        body.dark .sidebar,
+        body.dark .controls,
+        body.dark .port-card,
+        body.dark .port-list-item {
+            background: rgba(45, 55, 72, 0.95);
+            color: #e2e8f0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        body.dark .sidebar h3,
+        body.dark .sidebar h4,
+        body.dark #containerFilterSection h4,
+        body.dark .port-range-lock h4,
+        body.dark .modal-title,
+        body.dark .config-section h3,
+        body.dark .edit-modal h3 {
+            color: #e2e8f0;
+        }
+        body.dark .stat-label,
+        body.dark .tab-link,
+        body.dark .input-group label,
+        body.dark .sort-control label,
+        body.dark .port-presets .presets-label,
+        body.dark #dockerStatus,
+        body.dark .conn-count,
+        body.dark .image-name,
+        body.dark #lastRefreshTime {
+            color: #a0aec0;
+        }
+        body.dark .tab-link:hover {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+        body.dark .port-range-lock,
+        body.dark .stat-item {
+            background: #2d3748;
+            border-color: #4a5568;
+        }
+        body.dark .input-group input,
+        body.dark .search-input,
+        body.dark #configEditor,
+        body.dark .toolbar-select,
+        body.dark .modal-content input,
+        body.dark .modal-content textarea,
+        body.dark .edit-modal input,
+        body.dark .edit-modal select {
+            background: #1a202c;
+            color: #e2e8f0;
+            border-color: #4a5568;
+        }
+        body.dark .modal-content,
+        body.dark .edit-modal-content {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+        body.dark .container-name,
+        body.dark .process-name,
+        body.dark .service-name,
+        body.dark .mapped-port,
+        body.dark .container-port,
+        body.dark .gap-info {
+            color: #cbd5e0;
+        }
+        body.dark .port-card.gap,
+        body.dark .port-card.virtual,
+        body.dark .port-list-item.gap,
+        body.dark .port-list-item.virtual {
+            background: #232a38;
+            border-color: #4a5568;
+            color: #718096;
+        }
+        body.dark .view-toggle,
+        body.dark .protocol-toggle,
+        body.dark .target-toggle {
+            background: #1a202c;
+        }
+        body.dark .protocol-btn,
+        body.dark .view-btn,
+        body.dark .target-btn {
+            color: #a0aec0;
+        }
+        body.dark .view-btn.active,
+        body.dark .protocol-btn.active,
+        body.dark .target-btn.active {
+            background: #4a5568;
+            color: #e2e8f0;
+        }
+        body.dark .preset-btn {
+            background: #1a202c;
+            color: #a0aec0;
+            border-color: #4a5568;
+        }
+        body.dark .preset-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        body.dark .modal-header,
+        body.dark .config-section,
+        body.dark .modal-footer {
+            border-color: #4a5568;
+        }
+        body.dark .btn-secondary {
+            background: #1a202c;
+            color: #e2e8f0;
+            border-color: #4a5568;
+        }
+        body.dark .error {
+            background: #742a2a;
+            color: #fed7d7;
+        }
+        body.dark .config-section p,
+        body.dark .modal-content p {
+            color: #a0aec0;
+        }
+        body.dark .protocol-badge,
+        body.dark .ip-version-badge {
+            background: #1a202c;
+            color: #cbd5e0;
+        }
     </style>
 </head>
 <body>
@@ -1284,6 +1580,20 @@
                         🔄 解锁
                     </button>
                 </div>
+                <div class="port-presets">
+                    <span class="presets-label">快速预设范围:</span>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" onclick="applyPreset(1, 1023)" title="知名端口 1-1023">知名</button>
+                        <button class="preset-btn" onclick="applyPreset(1024, 49151)" title="注册端口 1024-49151">注册</button>
+                        <button class="preset-btn" onclick="applyPreset(49152, 65535)" title="动态端口 49152-65535">动态</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 按容器筛选（动态生成） -->
+            <div id="containerFilterSection" style="display: none;">
+                <h4>🐳 按容器筛选</h4>
+                <ul id="containerFilterList" class="tab-list"></ul>
             </div>
         </div>
 
@@ -1293,24 +1603,31 @@
                     <div class="stats">
                         <div class="stat-item">
                             <div class="stat-number" id="totalUsed">-</div>
-                            <div class="stat-label">已使用端口</div>
+                            <div class="stat-label">🔌 已使用端口</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-number" id="totalAvailable">-</div>
-                            <div class="stat-label">可用端口</div>
+                            <div class="stat-label">🟢 可用端口</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-number" id="dockerContainers">-</div>
-                            <div class="stat-label">Docker容器</div>
+                            <div class="stat-label">🐳 Docker容器</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-number" id="tcpUsed">-</div>
-                            <div class="stat-label">TCP端口</div>
+                            <div class="stat-label">📡 TCP端口</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-number" id="udpUsed">-</div>
-                            <div class="stat-label">UDP端口</div>
+                            <div class="stat-label">📶 UDP端口</div>
                         </div>
+                    </div>
+                    <div class="status-bar">
+                        <span id="dockerStatus">
+                            <span class="docker-dot"></span>
+                            <span class="docker-status-text">检查中...</span>
+                        </span>
+                        <span id="lastRefreshTime">上次刷新: --</span>
                     </div>
                 </div>
                 <div class="controls-center">
@@ -1330,6 +1647,27 @@
                                 <button class="view-btn" data-view="list">📋 列表</button>
                             </div>
                         </div>
+                        <div class="toggle-row">
+                            <div class="sort-control">
+                                <label for="sortSelect">排序:</label>
+                                <select id="sortSelect" class="toolbar-select" onchange="applySort()">
+                                    <option value="port_asc">端口 ↑</option>
+                                    <option value="port_desc">端口 ↓</option>
+                                    <option value="name_asc">名称 A-Z</option>
+                                    <option value="name_desc">名称 Z-A</option>
+                                    <option value="source">来源</option>
+                                </select>
+                            </div>
+                            <div class="auto-refresh-group">
+                                <select id="autoRefreshInterval" class="toolbar-select" onchange="setAutoRefresh(this.value)">
+                                    <option value="0">自动刷新: 关闭</option>
+                                    <option value="10">每 10 秒</option>
+                                    <option value="30">每 30 秒</option>
+                                    <option value="60">每 60 秒</option>
+                                </select>
+                                <span id="autoRefreshCountdown" style="display: none;"></span>
+                            </div>
+                        </div>
                         <div class="search-container">
                             <input type="text" id="searchInput" placeholder="搜索端口、进程、服务..." class="search-input">
                             <button id="clearSearch" class="clear-search-btn">✕</button>
@@ -1341,6 +1679,8 @@
                         <button class="refresh-btn" onclick="refreshPorts()" id="refreshBtn">
                             🔄 刷新
                         </button>
+                        <button id="exportBtn" class="settings-btn" onclick="exportCSV()" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">📥 导出</button>
+                        <button id="darkModeBtn" class="settings-btn dark-mode-btn" onclick="toggleDarkMode()">🌙 深色</button>
                         <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
                         <button id="appSettingsBtn" class="settings-btn" onclick="openAppSettings()">🛠️ 应用设置</button>
                         <button id="logoutBtn" class="settings-btn" onclick="location.href='/logout'" style="display: none;">🚪 退出登录</button>
@@ -1446,6 +1786,13 @@
         let hostIp = ''; // 内网地址，用于端口卡片跳转链接
         let externalHost = ''; // 外网地址（域名或公网IP）
         let jumpTarget = 'intranet'; // 当前跳转目标：intranet / external
+        let currentSort = 'port_asc'; // 当前排序方式
+        let currentContainerFilter = null; // 按容器筛选：null=全部
+        let previousPortSet = null; // 上次端口集合，用于变更高亮
+        let highlightPorts = new Set(); // 本次需高亮的新增端口
+        let autoRefreshTimer = null; // 自动刷新计时器
+        let autoRefreshSeconds = 0; // 自动刷新间隔（秒）
+        let autoRefreshRemaining = 0; // 倒计时剩余
         
         // 端口范围锁定相关变量
         let isPortRangeLocked = false;
@@ -1768,10 +2115,16 @@
             let filteredCards = data.port_cards.filter(card => {
                 // 首先检查是否为隐藏端口
                 const isHidden = isPortHidden(card);
-                
+
                 // 检查是否在端口范围锁定内
                 const inRange = isPortInRange(card);
-                
+
+                // 按容器筛选（选中某容器时，仅显示该容器的端口）
+                if (currentContainerFilter !== null) {
+                    const cardContainer = card.container || card.container_name;
+                    if (cardContainer !== currentContainerFilter) return false;
+                }
+
                 switch (currentFilter) {
                     case 'all':
                         return !isHidden && inRange; // 显示所有非隐藏且在范围内的端口
@@ -1931,9 +2284,7 @@
                 
                 if (result.success) {
                     portsData = result.data;
-                    if (result.data.host_ip) hostIp = result.data.host_ip;
-                    externalHost = result.data.external_host || '';
-                    updateTargetToggle();
+                    onDataLoaded(result.data);
                     displayPorts(filterPorts(portsData));
                     updateStats(portsData);
                 } else {
@@ -1992,9 +2343,7 @@
                 
                 if (result.success) {
                     portsData = result.data;
-                    if (result.data.host_ip) hostIp = result.data.host_ip;
-                    externalHost = result.data.external_host || '';
-                    updateTargetToggle();
+                    onDataLoaded(result.data);
                     displayPorts(filterPorts(portsData));
                     updateStats(portsData);
                 } else {
@@ -2068,7 +2417,12 @@
         function displayPorts(data) {
             const container = document.getElementById('portsContainer');
             container.innerHTML = '';
-            
+
+            // 按当前排序方式排序
+            if (data.port_cards) {
+                data.port_cards = sortCards(data.port_cards);
+            }
+
             if (!data.port_cards || data.port_cards.length === 0) {
                 // 根据当前过滤器显示不同的空状态信息
                 let emptyMessage = '';
@@ -2092,14 +2446,17 @@
                 // 检查是否为隐藏端口
                 const isHidden = isPortHidden(card);
                 const isVirtual = card.is_virtual || false;
-                
+                // 是否为本次新增端口（需高亮）
+                const isNew = card.type === 'used' && card.port && highlightPorts.has(card.port);
+                const highlightCls = isNew ? ' highlight-new' : '';
+
                 // 创建卡片视图元素
                 const cardEl = document.createElement('div');
-                cardEl.className = `port-card${isHidden ? ' hidden' : ''}${isVirtual ? ' virtual' : ''}`;
-                
+                cardEl.className = `port-card${isHidden ? ' hidden' : ''}${isVirtual ? ' virtual' : ''}${highlightCls}`;
+
                 // 创建列表视图元素
                 const listEl = document.createElement('div');
-                listEl.className = `port-list-item${isHidden ? ' hidden' : ''}${isVirtual ? ' virtual' : ''}`;
+                listEl.className = `port-list-item${isHidden ? ' hidden' : ''}${isVirtual ? ' virtual' : ''}${highlightCls}`;
                 
                 if (card.type === 'used') {
                     cardEl.classList.add('used');
@@ -2148,14 +2505,25 @@
                     const isUnknownService = displayName === '未知服务';
                     
                     // 卡片视图内容
+                    const hasTooltipDetail = fullName.length > 15 || card.image || card.container_port || card.connection_count;
+                    const tooltipDetail = `
+                        ${fullName}
+                        ${card.image ? `<br>镜像: ${card.image}` : ''}
+                        ${card.container_port ? `<br>容器端口: ${card.container_port}` : ''}
+                        ${card.connection_count ? `<br>连接数: ${card.connection_count}` : ''}
+                    `;
                     cardEl.innerHTML = `
                         <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
                             ${portDisplayHtml}
                             <div class="tooltip">
                                 <div class="service-name">${displayName}</div>
-                                ${fullName.length > 15 ? `<span class="tooltiptext">${fullName}</span>` : ''}
+                                ${hasTooltipDetail ? `<span class="tooltiptext">${tooltipDetail}</span>` : ''}
                             </div>
-                            ${card.protocol ? `<div style="margin-top: 0.2rem;">${renderProtocolBadges(card.protocol)}</div>` : ''}
+                            ${card.image ? `<div class="image-name" title="${card.image}">📦 ${card.image}</div>` : ''}
+                            <div style="margin-top: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; flex-wrap: wrap;">
+                                ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
+                                ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
+                            </div>
                         </div>
                         <div class="port-card-footer">
                             <div class="port-card-actions">
@@ -2196,6 +2564,7 @@
                                  </div>
                              </div>
                              <div style="display: flex; gap: 0.5rem; align-items: center; height: 24px;">
+                                 ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
                                  ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                                  ${isUnknownService ? `<button class="add-port-btn list-add-btn" onclick="editPortName(${card.port})" title="添加端口到配置文件">+</button>` : ''}
                                  <span class="port-source-badge ${card.source}" style="height: 20px; display: flex; align-items: center; line-height: 20px;">${card.source === 'docker' ? 'Docker' : '宿主机'}</span>
@@ -2305,6 +2674,277 @@
         }
 
         /**
+         * 更新「上次刷新」时间
+         */
+        function updateLastRefreshTime(serverTime) {
+            const el = document.getElementById('lastRefreshTime');
+            if (el) {
+                el.textContent = '上次刷新: ' + (serverTime || new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+            }
+        }
+
+        /**
+         * 更新 Docker 连接状态指示器
+         */
+        function updateDockerStatus(connected) {
+            const dot = document.querySelector('#dockerStatus .docker-dot');
+            const text = document.querySelector('#dockerStatus .docker-status-text');
+            if (!dot || !text || connected === undefined) return;
+            if (connected) {
+                dot.className = 'docker-dot connected';
+                text.textContent = 'Docker 已连接';
+            } else {
+                dot.className = 'docker-dot disconnected';
+                text.textContent = 'Docker 未连接';
+            }
+        }
+
+        /**
+         * 处理一次数据加载成功后的通用更新（刷新时间/Docker状态/容器列表/变更检测）
+         */
+        function onDataLoaded(data, detectChanges = false) {
+            if (data.host_ip) hostIp = data.host_ip;
+            externalHost = data.external_host || '';
+            updateTargetToggle();
+            updateLastRefreshTime(data.server_time);
+            updateDockerStatus(data.docker_connected);
+            updateContainerFilterList(data.docker_container_names || []);
+            computeHighlights(data, detectChanges);
+        }
+
+        /**
+         * 深色模式
+         */
+        function initDarkMode() {
+            const saved = localStorage.getItem('dockports-dark-mode');
+            const btn = document.getElementById('darkModeBtn');
+            if (saved === 'true') {
+                document.body.classList.add('dark');
+                if (btn) btn.textContent = '☀️ 浅色';
+            }
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.body.classList.toggle('dark');
+            localStorage.setItem('dockports-dark-mode', isDark ? 'true' : 'false');
+            const btn = document.getElementById('darkModeBtn');
+            if (btn) btn.textContent = isDark ? '☀️ 浅色' : '🌙 深色';
+        }
+
+        /**
+         * 自动刷新
+         */
+        function setAutoRefresh(value) {
+            autoRefreshSeconds = parseInt(value) || 0;
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+            const countdownEl = document.getElementById('autoRefreshCountdown');
+            if (autoRefreshSeconds <= 0) {
+                countdownEl.style.display = 'none';
+                return;
+            }
+            autoRefreshRemaining = autoRefreshSeconds;
+            countdownEl.style.display = '';
+            countdownEl.textContent = autoRefreshRemaining + 's';
+            autoRefreshTimer = setInterval(() => {
+                autoRefreshRemaining--;
+                if (autoRefreshRemaining <= 0) {
+                    autoRefreshRemaining = autoRefreshSeconds;
+                    silentRefresh();
+                }
+                countdownEl.textContent = autoRefreshRemaining + 's';
+            }, 1000);
+        }
+
+        /**
+         * 静默刷新（不显示 loading 遮罩，用于自动刷新）
+         */
+        async function silentRefresh() {
+            if (isLoading) return;
+            try {
+                let apiUrl = '/api/ports';
+                const params = new URLSearchParams();
+                if (currentProtocol !== 'all') params.append('protocol', currentProtocol.toUpperCase());
+                if (isPortRangeLocked && lockedStartPort && lockedEndPort) {
+                    params.append('start_port', lockedStartPort.toString());
+                    params.append('end_port', lockedEndPort.toString());
+                }
+                if (params.toString()) apiUrl += '?' + params.toString();
+                const response = await fetch(apiUrl);
+                const result = await response.json();
+                if (result.success) {
+                    portsData = result.data;
+                    onDataLoaded(result.data, true);
+                    displayPorts(filterPorts(portsData));
+                    updateStats(portsData);
+                }
+            } catch (e) {
+                // 静默忽略
+            }
+        }
+
+        /**
+         * 应用端口范围预设
+         */
+        function applyPreset(start, end) {
+            const startInput = document.getElementById('startPort');
+            const endInput = document.getElementById('endPort');
+            const lockBtn = document.getElementById('lockRangeBtn');
+            // 先解锁（如已锁定）以便重新填值
+            if (isPortRangeLocked) {
+                isPortRangeLocked = false;
+                lockBtn.textContent = '🔓 锁定';
+                lockBtn.classList.remove('locked');
+                startInput.disabled = false;
+                endInput.disabled = false;
+            }
+            startInput.value = start;
+            endInput.value = end;
+            togglePortRangeLock(); // 锁定并加载
+        }
+
+        /**
+         * 应用排序
+         */
+        function applySort() {
+            currentSort = document.getElementById('sortSelect').value;
+            displayPorts(filterPorts(portsData));
+        }
+
+        /**
+         * 对端口卡片排序
+         */
+        function sortCards(cards) {
+            const sorted = [...cards];
+            sorted.sort((a, b) => {
+                const portA = a.port || a.start_port || 0;
+                const portB = b.port || b.start_port || 0;
+                const nameA = (a.service_name || a.container || '').toLowerCase();
+                const nameB = (b.service_name || b.container || '').toLowerCase();
+                switch (currentSort) {
+                    case 'port_desc': return portB - portA;
+                    case 'name_asc': return nameA.localeCompare(nameB) || (portA - portB);
+                    case 'name_desc': return nameB.localeCompare(nameA) || (portA - portB);
+                    case 'source': {
+                        const srcA = a.source || a.type || '';
+                        const srcB = b.source || b.type || '';
+                        return srcA.localeCompare(srcB) || (portA - portB);
+                    }
+                    case 'port_asc':
+                    default: return portA - portB;
+                }
+            });
+            return sorted;
+        }
+
+        /**
+         * 更新侧边栏容器筛选列表
+         */
+        function updateContainerFilterList(containerNames) {
+            const section = document.getElementById('containerFilterSection');
+            const list = document.getElementById('containerFilterList');
+            if (!section || !list) return;
+            if (!containerNames || containerNames.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            section.style.display = '';
+            list.innerHTML = '';
+            // 全部容器
+            const allLi = document.createElement('li');
+            allLi.className = 'tab-item';
+            allLi.innerHTML = `<a class="tab-link ${currentContainerFilter === null ? 'active' : ''}" data-container="">📋 全部容器</a>`;
+            allLi.querySelector('a').addEventListener('click', (e) => { e.preventDefault(); setContainerFilter(null); });
+            list.appendChild(allLi);
+            // 各容器
+            containerNames.forEach(name => {
+                const li = document.createElement('li');
+                li.className = 'tab-item';
+                const a = document.createElement('a');
+                a.className = 'tab-link' + (currentContainerFilter === name ? ' active' : '');
+                a.setAttribute('data-container', name);
+                a.textContent = '🐳 ' + name;
+                a.addEventListener('click', (e) => { e.preventDefault(); setContainerFilter(name); });
+                li.appendChild(a);
+                list.appendChild(li);
+            });
+        }
+
+        function setContainerFilter(name) {
+            currentContainerFilter = name;
+            updateContainerFilterList(portsData.docker_container_names || []);
+            displayPorts(filterPorts(portsData));
+        }
+
+        /**
+         * 检测端口变更，计算需要高亮的新增端口
+         */
+        function computeHighlights(data, detectChanges) {
+            const currentSet = new Set();
+            (data.port_cards || []).forEach(c => {
+                if (c.type === 'used' && c.port) currentSet.add(c.port);
+                else if (c.type === 'unknown_range') {
+                    for (let p = c.start_port; p <= c.end_port; p++) currentSet.add(p);
+                }
+            });
+            highlightPorts = new Set();
+            // 仅在「真实刷新」时高亮新增端口；切换过滤器不高亮（避免误判）
+            if (detectChanges && previousPortSet !== null) {
+                currentSet.forEach(p => {
+                    if (!previousPortSet.has(p)) highlightPorts.add(p);
+                });
+            }
+            previousPortSet = currentSet;
+        }
+
+        /**
+         * 导出当前显示数据为 CSV
+         */
+        function exportCSV() {
+            const filtered = filterPorts(portsData);
+            if (!filtered.port_cards || filtered.port_cards.length === 0) {
+                showMessage('没有可导出的数据', 'error');
+                return;
+            }
+            const rows = [['类型', '端口', '来源', '协议', '服务名称', '容器', '镜像', '连接数']];
+            sortCards(filtered.port_cards).forEach(card => {
+                let portStr = '';
+                let typeStr = '已用';
+                if (card.type === 'used') {
+                    portStr = card.port;
+                } else if (card.type === 'gap') {
+                    portStr = `${card.start_port}-${card.end_port}`;
+                    typeStr = '可用';
+                } else if (card.type === 'unknown_range') {
+                    portStr = `${card.start_port}-${card.end_port}`;
+                }
+                rows.push([
+                    typeStr,
+                    portStr,
+                    card.source || '-',
+                    (card.protocol || '-'),
+                    (card.service_name || '').replace(/"/g, '""'),
+                    (card.container || '').replace(/"/g, '""'),
+                    (card.image || '').replace(/"/g, '""'),
+                    card.connection_count != null ? card.connection_count : '-'
+                ]);
+            });
+            const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\r\n');
+            const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dockports_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showMessage(`已导出 ${rows.length - 1} 条记录`, 'success');
+        }
+
+        /**
          * 显示错误信息
          */
         function showError(message) {
@@ -2329,9 +2969,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    displayPorts(result.data);
-                    updateStats(result.data);
-                    
+                    portsData = result.data;
+                    onDataLoaded(result.data, true);
+                    displayPorts(filterPorts(portsData));
+                    updateStats(portsData);
+
                     // 显示成功提示
                     refreshBtn.textContent = '✅ 刷新成功';
                     setTimeout(() => {
@@ -3005,6 +3647,7 @@
 
         // 页面加载完成后自动加载数据
         document.addEventListener('DOMContentLoaded', function() {
+            initDarkMode();
             loadHiddenPorts().then(() => {
                 loadPorts();
             });

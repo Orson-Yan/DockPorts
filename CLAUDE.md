@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-DockPorts 是一个容器端口监控与可视化工具。后端为单文件 Flask 应用，前端为单文件 HTML（内嵌全部 CSS/JS）。运行时通过 Docker API 读取容器端口映射、通过 `netstat` 读取主机监听端口，合并后在卡片式界面展示。
+DockPorts 是一个容器端口监控与可视化工具。后端为单文件 Flask 应用，前端为单文件 HTML（内嵌全部 CSS/JS）。运行时通过 Docker API 读取容器端口映射、通过 `psutil` 读取主机监听端口，合并后在卡片式界面展示。
 
 ## 常用命令
 
@@ -30,7 +30,7 @@ docker build -t dockports .
 **单文件后端 `app.py`**：核心是 `PortMonitor` 类（全局单例 `port_monitor`）。Flask 路由都是它的薄封装。
 
 - `get_docker_ports()`：读取容器 `NetworkSettings.Ports` 的显式端口映射。
-- `get_host_ports()`：解析 `netstat -tuln` 输出，区分 TCP/UDP 与 IPv4/IPv6（`TCP6`/`UDP6` 后缀判定 IPv6）。
+- `get_host_ports()`：用 `psutil.net_connections(kind='inet')` 枚举监听端口，区分 TCP/UDP 与 IPv4/IPv6，并统计每个端口的连接数。
 - `get_host_network_containers_cached()`：**host 网络容器没有端口映射**，因此从四处推断端口——`ExposedPorts`、`Healthcheck.Test`、`Entrypoint/Cmd`（多种 `--port`/`:port` 正则）、含 `PORT/LISTEN/BIND` 的环境变量。结果带 30 秒缓存（`cache_ttl`）。修改端口检测逻辑通常在这里。
 - `get_port_analysis(start_port, end_port, protocol_filter)`：把上述数据合并为前端用的 `port_cards` 列表。卡片有四种 `type`：`used`（单端口）、`unknown_range`（≥2 个连续「未知服务」端口合并）、`gap`（未使用端口区间）、虚拟隐藏端口。最后按 `hidden_ports` 过滤。返回结构即 `/api/ports` 的响应。
 
@@ -47,7 +47,7 @@ docker build -t dockports .
 ## 关键约束
 
 - **路径硬编码**：`CONFIG_DIR = '/app/config'` 是容器内绝对路径。本地 `python app.py` 运行时会尝试在 `/app/config` 读写（Windows 下需注意），这是容器优先的设计。
-- **依赖 Linux 运行时**：`netstat`（net-tools）、Docker socket `/var/run/docker.sock`（只读挂载）、host 网络模式是正常工作的前提。
+- **依赖 Linux 运行时**：`psutil`（读 `/proc/net`）、Docker socket `/var/run/docker.sock`（只读挂载）、host 网络模式是正常工作的前提。
 - **配置优先级**：命令行参数 > 环境变量（`DOCKPORTS_PORT`/`HOST`/`DEBUG`）> 默认值，逻辑在 `parse_args()`。
 
 ## 提交规范

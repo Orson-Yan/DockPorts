@@ -242,42 +242,53 @@
         }
 
         .controls-left {
-            flex: 0 0 auto;
+            flex: 1 1 auto;
+            order: 1;
         }
 
+        /* 操作按钮置于第一行右侧，与统计栏并排 */
+        .controls-right {
+            flex: 0 0 auto;
+            order: 2;
+        }
+
+        /* 过滤区整行铺满，落到第二行左对齐 */
         .controls-center {
-            flex: 1;
+            flex: 1 1 100%;
+            order: 3;
             display: flex;
-            justify-content: center;
+            justify-content: flex-start;
         }
 
         .filter-controls {
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
+            width: 100%;
         }
 
         .toggle-row {
             display: flex;
             align-items: center;
             gap: 1rem;
-            justify-content: space-between;
-        }
-
-        .controls-right {
-            flex: 0 0 auto;
+            justify-content: flex-start;
+            flex-wrap: wrap;
         }
 
         .action-buttons {
             display: flex;
-            flex-direction: column;
+            flex-flow: row wrap;
+            justify-content: flex-end;
             gap: 0.5rem;
+            max-width: 420px;
         }
 
         .action-buttons button {
-            width: 120px;
-            min-width: 120px;
+            width: auto;
+            min-width: 0;
             white-space: nowrap;
+            padding: 0.55rem 0.9rem;
+            font-size: 0.9rem;
         }
 
         .view-toggle {
@@ -1156,6 +1167,8 @@
             position: relative;
             display: flex;
             align-items: center;
+            max-width: 520px;
+            width: 100%;
         }
         
         .search-input {

@@ -9,7 +9,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # 安装系统依赖、构建工具和Docker客户端
 RUN apt-get update && apt-get install -y \
-    net-tools \
     procps \
     curl \
     ca-certificates \

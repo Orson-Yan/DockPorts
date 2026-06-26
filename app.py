@@ -9,17 +9,19 @@ DockPorts - 容器化NAS端口记录工具
 """
 
 import docker
-import subprocess
 import json
 import re
-from flask import Flask, render_template, jsonify, request
+import psutil
+import secrets
+from flask import Flask, render_template, jsonify, request, session, redirect
+from werkzeug.security import generate_password_hash, check_password_hash
 from collections import defaultdict
 import logging
 from datetime import datetime, timedelta
 import os
 import socket
 import time
-from functools import lru_cache
+from functools import lru_cache, wraps
 import argparse
 
 # 配置日志
@@ -35,6 +37,7 @@ app = Flask(__name__)
 CONFIG_DIR = '/app/config'
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 HIDDEN_PORTS_FILE = os.path.join(CONFIG_DIR, 'hidden_ports.json')
+SETTINGS_FILE = os.path.join(CONFIG_DIR, 'settings.json')
 DEFAULT_CONFIG_FILE = '/app/config/config.json'
 
 def init_config():
@@ -199,9 +202,99 @@ def save_hidden_ports(hidden_ports):
         print(f"保存隐藏端口配置失败: {e}")
         return False
 
+def default_settings():
+    """生成默认应用设置（含随机 secret_key）"""
+    return {
+        'intranet_host': '',
+        'auth': {
+            'enabled': False,
+            'username': 'admin',
+            'password_hash': ''
+        },
+        'secret_key': secrets.token_hex(32)
+    }
+
+def init_settings():
+    """初始化应用设置文件，缺字段时补全"""
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+
+    if not os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default_settings(), f, indent=2, ensure_ascii=False)
+        print(f"应用设置文件已创建: {SETTINGS_FILE}")
+        return
+
+    # 已存在则补全缺失字段（向后兼容）
+    try:
+        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+
+    base = default_settings()
+    changed = False
+    if 'intranet_host' not in data:
+        data['intranet_host'] = base['intranet_host']
+        changed = True
+    if not isinstance(data.get('auth'), dict):
+        data['auth'] = base['auth']
+        changed = True
+    else:
+        for k, v in base['auth'].items():
+            if k not in data['auth']:
+                data['auth'][k] = v
+                changed = True
+    if not data.get('secret_key'):
+        data['secret_key'] = base['secret_key']
+        changed = True
+
+    if changed:
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"应用设置文件已更新: {SETTINGS_FILE}")
+
+def load_settings():
+    """加载应用设置"""
+    try:
+        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"加载应用设置失败: {e}")
+        return default_settings()
+
+def save_settings(new_settings):
+    """保存应用设置"""
+    try:
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(new_settings, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"保存应用设置失败: {e}")
+        return False
+
+def detect_intranet_ip():
+    """自动检测内网 IP（通过出站路由判断主网卡地址）"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        return s.getsockname()[0]
+    except Exception:
+        return '127.0.0.1'
+    finally:
+        s.close()
+
+def get_effective_host():
+    """获取用于端口跳转的有效内网地址（手动设置优先，否则自动检测）"""
+    return (settings.get('intranet_host') or '').strip() or detect_intranet_ip()
+
 # 初始化配置
 init_config()
+init_settings()
 config = load_config()
+settings = load_settings()
+
+# 设置 Flask session 密钥（持久化于 settings.json，重启后 session 不失效）
+app.secret_key = settings.get('secret_key') or secrets.token_hex(32)
 
 class PortMonitor:
     """端口监控类"""
@@ -283,86 +376,45 @@ class PortMonitor:
         host_containers = self.get_host_network_containers_cached()
         
         try:
-            # 使用netstat获取监听端口信息（不获取进程信息）
-            result = subprocess.run(
-                ['netstat', '-tuln'], 
-                capture_output=True, 
-                text=True, 
-                check=True
-            )
-            
-            logger.info("成功执行netstat命令")
-            
-            # 解析netstat输出
-            for line in result.stdout.split('\n'):
-                if not line.strip():
+            # 使用 psutil 获取监听端口信息（跨平台，无需 netstat）
+            for conn in psutil.net_connections(kind='inet'):
+                # TCP 仅取 LISTEN 状态；UDP 无连接状态(CONN_NONE)，全部收集
+                if conn.type == socket.SOCK_STREAM and conn.status != psutil.CONN_LISTEN:
                     continue
-                    
-                parts = line.split()
-                if len(parts) < 4:
+                if not conn.laddr:
                     continue
-                
-                # 匹配监听端口行
-                if 'LISTEN' in line or 'udp' in line:
-                    protocol = parts[0].upper()  # TCP/UDP
-                    local_address = parts[3]
-                    
-                    # 解析协议和端口号
-                    # 根据协议名称确定IP版本和协议类型
-                    if protocol.endswith('6'):
-                        # TCP6/UDP6 表示IPv6
-                        protocol_type = protocol[:-1]  # 去掉末尾的6
-                        ip_version = 'IPv6'
-                    else:
-                        # TCP/UDP 表示IPv4
-                        protocol_type = protocol
-                        ip_version = 'IPv4'
-                    
-                    if ':' in local_address:
-                        # 解析端口号
-                        if local_address.count(':') > 1 or protocol.endswith('6'):
-                            # IPv6地址格式: [::]:port 或 [address]:port
-                            if local_address.startswith('['):
-                                port_part = local_address.split(']:')[-1]
-                            else:
-                                port_part = local_address.split(':')[-1]
-                        else:
-                            # IPv4格式: address:port
-                            port_part = local_address.split(':')[-1]
-                        
-                        try:
-                            port = int(port_part)
-                        except ValueError:
-                            continue
-                    else:
-                        continue
-                    
-                    # 检查是否为host网络容器的端口
-                    container_name = None
-                    for container_info in host_containers.values():
-                        if port in container_info['exposed_ports']:
-                            container_name = container_info['name']
-                            break
-                    
-                    # 跟踪端口的协议和IP版本
-                    if port not in port_protocols:
-                        port_protocols[port] = {'protocols': set(), 'ip_versions': set()}
-                    
-                    port_protocols[port]['protocols'].add(protocol_type)
-                    port_protocols[port]['ip_versions'].add(ip_version)
-                    
-                    # 如果端口已存在，更新信息
-                    if port not in port_info:
-                        port_info[port] = {
-                            'port': port,
-                            'protocol': protocol_type,
-                            'ip_version': ip_version,
-                            'address': local_address,
-                            'service_name': self.get_service_name(port),
-                            'container_name': container_name
-                        }
-                    
-                    logger.debug(f"发现主机使用端口: {port} ({protocol}/{ip_version})")
+
+                port = conn.laddr.port
+                protocol_type = 'TCP' if conn.type == socket.SOCK_STREAM else 'UDP'
+                ip_version = 'IPv6' if conn.family == socket.AF_INET6 else 'IPv4'
+                local_address = f"{conn.laddr.ip}:{port}"
+
+                # 检查是否为host网络容器的端口
+                container_name = None
+                for container_info in host_containers.values():
+                    if port in container_info['exposed_ports']:
+                        container_name = container_info['name']
+                        break
+
+                # 跟踪端口的协议和IP版本
+                if port not in port_protocols:
+                    port_protocols[port] = {'protocols': set(), 'ip_versions': set()}
+
+                port_protocols[port]['protocols'].add(protocol_type)
+                port_protocols[port]['ip_versions'].add(ip_version)
+
+                # 如果端口已存在，更新信息
+                if port not in port_info:
+                    port_info[port] = {
+                        'port': port,
+                        'protocol': protocol_type,
+                        'ip_version': ip_version,
+                        'address': local_address,
+                        'service_name': self.get_service_name(port),
+                        'container_name': container_name
+                    }
+
+                logger.debug(f"发现主机使用端口: {port} ({protocol_type}/{ip_version})")
             
             # 合并协议信息
             for port, info in port_info.items():
@@ -388,12 +440,10 @@ class PortMonitor:
                 
                 # 移除单独的ip_version字段，信息已包含在protocol中
                 del info['ip_version']
-        
-        except subprocess.CalledProcessError as e:
-            logger.error(f"执行netstat命令失败: {e}")
+
         except Exception as e:
             logger.error(f"获取主机端口信息失败: {e}")
-        
+
         return port_info
     
     def get_service_name(self, port):
@@ -834,6 +884,47 @@ class PortMonitor:
 # 创建端口监控实例
 port_monitor = PortMonitor()
 
+@app.before_request
+def require_login():
+    """登录守卫：开启鉴权且未登录时，HTML 跳转登录页，API 返回 401"""
+    if not settings.get('auth', {}).get('enabled'):
+        return None
+    # 放行登录页与静态资源
+    if request.endpoint in ('login', 'static'):
+        return None
+    if session.get('logged_in'):
+        return None
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': '未登录'}), 401
+    return redirect('/login')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """登录页与登录处理"""
+    # 未开启鉴权时无需登录，直接回首页
+    if not settings.get('auth', {}).get('enabled'):
+        return redirect('/')
+
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        auth = settings.get('auth', {})
+        if username == auth.get('username') and auth.get('password_hash') \
+                and check_password_hash(auth['password_hash'], password):
+            session['logged_in'] = True
+            return redirect('/')
+        return render_template('login.html', error='用户名或密码错误')
+
+    if session.get('logged_in'):
+        return redirect('/')
+    return render_template('login.html', error=None)
+
+@app.route('/logout')
+def logout():
+    """退出登录"""
+    session.clear()
+    return redirect('/login')
+
 @app.route('/')
 def index():
     """主页面"""
@@ -871,7 +962,10 @@ def api_ports():
             end_port = 65535
         
         port_data = port_monitor.get_port_analysis(start_port=start_port, end_port=end_port, protocol_filter=protocol_filter)
-        
+
+        # 提供有效内网地址，供前端拼接端口跳转链接
+        port_data['host_ip'] = get_effective_host()
+
         # 处理搜索参数
         search = request.args.get('search', '').strip().lower()
         if search:
@@ -1108,6 +1202,73 @@ def api_save_config():
     except Exception as e:
         logger.error(f"保存配置时出错: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/settings')
+def api_get_settings():
+    """API接口：获取应用设置（脱敏，不含密码哈希与密钥）"""
+    try:
+        auth = settings.get('auth', {})
+        return jsonify({
+            'success': True,
+            'data': {
+                'intranet_host': settings.get('intranet_host', ''),
+                'detected_ip': detect_intranet_ip(),
+                'auth': {
+                    'enabled': bool(auth.get('enabled')),
+                    'username': auth.get('username', 'admin'),
+                    'has_password': bool(auth.get('password_hash'))
+                }
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取应用设置失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/settings', methods=['POST'])
+def api_save_settings():
+    """API接口：保存应用设置（内网地址、鉴权开关、用户名、可选新密码）"""
+    global settings
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的设置数据'}), 400
+
+        new_settings = load_settings()
+
+        # 内网地址
+        if 'intranet_host' in data:
+            new_settings['intranet_host'] = (data.get('intranet_host') or '').strip()
+
+        # 鉴权相关
+        auth = new_settings.setdefault('auth', {})
+        if 'username' in data:
+            username = (data.get('username') or '').strip()
+            if username:
+                auth['username'] = username
+
+        # 新密码（留空不改）
+        new_password = data.get('password')
+        if new_password:
+            auth['password_hash'] = generate_password_hash(new_password)
+
+        # 启用开关：开启时必须已设置密码
+        if 'enabled' in data:
+            enabled = bool(data.get('enabled'))
+            if enabled and not auth.get('password_hash'):
+                return jsonify({'success': False, 'error': '启用登录前请先设置密码'}), 400
+            auth['enabled'] = enabled
+
+        if save_settings(new_settings):
+            settings = load_settings()
+            # 配置者本次会话视为已登录，避免刚开启鉴权就被锁在外面
+            if settings.get('auth', {}).get('enabled'):
+                session['logged_in'] = True
+            return jsonify({'success': True, 'message': '应用设置已保存'})
+        return jsonify({'success': False, 'error': '设置保存失败'}), 500
+
+    except Exception as e:
+        logger.error(f"保存应用设置失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/refresh')
 def api_refresh():

@@ -1,0 +1,6 @@
+# 运行时生成，含 secret_key 与密码哈希，请勿提交
+config/settings.json
+
+# Python
+__pycache__/
+*.py[cod]

@@ -679,6 +679,14 @@
             margin-bottom: 0.3rem;
         }
 
+        .port-jump {
+            color: inherit;
+            text-decoration: none;
+        }
+        .port-jump:hover {
+            text-decoration: underline;
+        }
+
         .port-card.used .port-number {
             color: #48bb78;
         }
@@ -1300,6 +1308,8 @@
                             🔄 刷新
                         </button>
                         <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
+                        <button id="appSettingsBtn" class="settings-btn" onclick="openAppSettings()">🛠️ 应用设置</button>
+                        <button id="logoutBtn" class="settings-btn" onclick="location.href='/logout'" style="display: none;">🚪 退出登录</button>
                     </div>
                 </div>
             </div>
@@ -1342,6 +1352,48 @@
         </div>
     </div>
 
+    <!-- 应用设置模态框（内网地址 + 登录鉴权） -->
+    <div id="appSettingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">应用设置</h2>
+                <span class="close" onclick="closeAppSettings()">&times;</span>
+            </div>
+
+            <div class="config-section">
+                <h3>内网地址</h3>
+                <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">用于端口卡片点击跳转。留空则自动检测当前内网 IP。</p>
+                <input type="text" id="intranetHost" placeholder="例如 192.168.1.10（留空自动检测）"
+                       style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                <p id="detectedIpHint" style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.4rem;"></p>
+            </div>
+
+            <div class="config-section">
+                <h3>登录鉴权</h3>
+                <p style="color: #666; margin-bottom: 0.8rem; font-size: 0.9rem;">开启后访问需登录。首次开启请先设置密码。</p>
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; cursor: pointer;">
+                    <input type="checkbox" id="authEnabled"> <span>启用登录保护</span>
+                </label>
+                <div style="margin-bottom: 0.9rem;">
+                    <label style="display: block; font-size: 0.85rem; color: #4a5568; margin-bottom: 0.3rem;">用户名</label>
+                    <input type="text" id="authUsername" autocomplete="username"
+                           style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; color: #4a5568; margin-bottom: 0.3rem;">新密码 <span id="pwdHint" style="color: #a0aec0;"></span></label>
+                    <input type="password" id="authPassword" autocomplete="new-password" placeholder="留空则不修改密码"
+                           style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                </div>
+                <div id="appSettingsError" style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.6rem; display: none;"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAppSettings()">取消</button>
+                <button class="btn btn-primary" onclick="saveAppSettings()">保存设置</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let isLoading = false;
         let portsData = [];
@@ -1350,6 +1402,7 @@
         let currentView = 'card';
         let currentProtocol = 'all'; // 当前协议过滤器
         let searchTimeout = null;
+        let hostIp = ''; // 内网地址，用于端口卡片跳转链接
         
         // 端口范围锁定相关变量
         let isPortRangeLocked = false;
@@ -1792,6 +1845,7 @@
                 
                 if (result.success) {
                     portsData = result.data;
+                    if (result.data.host_ip) hostIp = result.data.host_ip;
                     displayPorts(filterPorts(portsData));
                     updateStats(portsData);
                 } else {
@@ -1850,6 +1904,7 @@
                 
                 if (result.success) {
                     portsData = result.data;
+                    if (result.data.host_ip) hostIp = result.data.host_ip;
                     displayPorts(filterPorts(portsData));
                     updateStats(portsData);
                 } else {
@@ -1876,6 +1931,16 @@
             }
             // 使用[port:num]格式显示连续端口范围
             return `${startPort}:${range}`;
+        }
+
+        /**
+         * 构建端口跳转链接（内网地址 + 端口）
+         * 加密端口(443/8443/9443)用 https，其余 http
+         */
+        function buildJumpUrl(port) {
+            if (!hostIp) return null;
+            const proto = [443, 8443, 9443].includes(port) ? 'https' : 'http';
+            return `${proto}://${hostIp}:${port}`;
         }
 
         /**
@@ -1956,16 +2021,22 @@
                     }
                     
                     // 获取显示名称和完整名称 - 优先使用配置文件中的服务名
-                    const displayName = card.service_name || 
+                    const displayName = card.service_name ||
                         (card.source === 'docker' ? (card.container || card.container_name || 'Docker容器') : (card.process || '系统服务'));
                     const fullName = displayName;
-                    
+
+                    // 构建端口跳转链接（点击端口号在新标签打开内网地址）
+                    const jumpUrl = buildJumpUrl(card.port);
+                    const portLink = jumpUrl
+                        ? `<a href="${jumpUrl}" target="_blank" rel="noopener" class="port-jump" title="打开 ${jumpUrl}" onclick="event.stopPropagation()">${card.port} ↗</a>`
+                        : `${card.port}`;
+
                     // 处理Docker容器端口显示格式
                     let portDisplayHtml = '';
                     if (card.source === 'docker' && card.container_port) {
                         portDisplayHtml = `
                             <div class="port-display">
-                                <div class="host-port">${card.port}</div>
+                                <div class="host-port">${portLink}</div>
                                 <div class="mapped-port">(${card.container_port})</div>
                             </div>
                         `;
@@ -1973,12 +2044,12 @@
                         // host网络容器端口
                         portDisplayHtml = `
                             <div class="port-display">
-                                <div class="host-port">${card.port}</div>
+                                <div class="host-port">${portLink}</div>
                                 <div class="mapped-port">(host)</div>
                             </div>
                         `;
                     } else {
-                        portDisplayHtml = `<div class="port-number">${card.port}</div>`;
+                        portDisplayHtml = `<div class="port-number">${portLink}</div>`;
                     }
                     
                     // 检查是否为未知服务
@@ -2013,12 +2084,12 @@
                     // 列表视图端口显示
                     let listPortDisplay = '';
                     if (card.source === 'docker' && card.container_port) {
-                        listPortDisplay = `${card.port} <span style="font-size: 0.8rem; color: #999;">(${card.container_port})</span>`;
+                        listPortDisplay = `${portLink} <span style="font-size: 0.8rem; color: #999;">(${card.container_port})</span>`;
                     } else if (card.source === 'docker' && card.is_host_network) {
                         // host网络容器端口
-                        listPortDisplay = `${card.port} <span style="font-size: 0.8rem; color: #999;">(host)</span>`;
+                        listPortDisplay = `${portLink} <span style="font-size: 0.8rem; color: #999;">(host)</span>`;
                     } else {
-                        listPortDisplay = card.port;
+                        listPortDisplay = portLink;
                     }
                     
                     // 列表视图内容
@@ -2232,6 +2303,94 @@
         }
 
         /**
+         * 打开应用设置（内网地址 + 鉴权）
+         */
+        async function openAppSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const result = await response.json();
+                if (!result.success) {
+                    alert('加载应用设置失败: ' + (result.error || '未知错误'));
+                    return;
+                }
+                const d = result.data;
+                document.getElementById('intranetHost').value = d.intranet_host || '';
+                document.getElementById('detectedIpHint').textContent =
+                    '当前自动检测到的内网 IP：' + (d.detected_ip || '未知');
+                document.getElementById('authEnabled').checked = !!d.auth.enabled;
+                document.getElementById('authUsername').value = d.auth.username || 'admin';
+                document.getElementById('authPassword').value = '';
+                document.getElementById('pwdHint').textContent =
+                    d.auth.has_password ? '（已设置，留空则不修改）' : '（尚未设置，启用登录前必须设置）';
+                document.getElementById('appSettingsError').style.display = 'none';
+                document.getElementById('appSettingsModal').style.display = 'block';
+            } catch (error) {
+                console.error('加载应用设置失败:', error);
+                alert('加载应用设置失败，请稍后重试');
+            }
+        }
+
+        function closeAppSettings() {
+            document.getElementById('appSettingsModal').style.display = 'none';
+        }
+
+        /**
+         * 保存应用设置
+         */
+        async function saveAppSettings() {
+            const errEl = document.getElementById('appSettingsError');
+            errEl.style.display = 'none';
+
+            const payload = {
+                intranet_host: document.getElementById('intranetHost').value.trim(),
+                enabled: document.getElementById('authEnabled').checked,
+                username: document.getElementById('authUsername').value.trim()
+            };
+            const pwd = document.getElementById('authPassword').value;
+            if (pwd) payload.password = pwd;
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('应用设置已保存！');
+                    closeAppSettings();
+                    updateLogoutButton();
+                    loadPorts();
+                } else {
+                    errEl.textContent = result.error || '保存失败';
+                    errEl.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('保存应用设置失败:', error);
+                errEl.textContent = '保存失败: ' + error.message;
+                errEl.style.display = 'block';
+            }
+        }
+
+        /**
+         * 根据鉴权开关显示/隐藏退出登录按钮
+         */
+        async function updateLogoutButton() {
+            try {
+                const response = await fetch('/api/settings');
+                const result = await response.json();
+                const btn = document.getElementById('logoutBtn');
+                if (result.success && result.data.auth.enabled) {
+                    btn.style.display = '';
+                } else {
+                    btn.style.display = 'none';
+                }
+            } catch (error) {
+                // 忽略，保持默认隐藏
+            }
+        }
+
+        /**
          * 保存设置
          */
         async function saveSettings() {
@@ -2362,6 +2521,10 @@
             const modal = document.getElementById('settingsModal');
             if (event.target === modal) {
                 closeSettings();
+            }
+            const appModal = document.getElementById('appSettingsModal');
+            if (event.target === appModal) {
+                closeAppSettings();
             }
         }
 
@@ -2752,6 +2915,7 @@
                 loadPorts();
             });
             initializeEventListeners();
+            updateLogoutButton();
         });
         
         // 自动刷新功能已关闭，如需刷新请点击刷新按钮

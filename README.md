@@ -26,17 +26,32 @@
 
 ## ✨ 功能特性
 
+### 监控与展示
 - 🐳 **Docker集成**: 通过Docker API实时监控容器端口映射
-- 🖥️ **系统监控**: 使用netstat监控主机端口使用情况
+- 🖥️ **系统监控**: 使用 psutil 监控主机端口使用情况（跨平台，无需 netstat）
 - 📊 **可视化展示**: 美观的卡片式界面，类似Docker Compose Maker风格
-- 🔄 **实时刷新**: 支持手动和自动刷新端口信息
+- 🌙 **深色模式**: 一键切换深色/浅色主题，偏好本地持久化
 - 📱 **响应式设计**: 支持桌面和移动设备
-- 🎯 **智能排序**: 端口按顺序排列，空隙用灰色卡片标注
 - 🏷️ **来源标识**: 区分Docker容器端口和系统服务端口
+- 📦 **容器详情**: 卡片展示镜像名，悬浮显示镜像/容器端口/连接数
+- 🔗 **连接数显示**: 展示每个端口当前活跃（ESTABLISHED）连接数
+- 🟢 **Docker 状态**: 工具栏指示灯实时显示 Docker 连接状态
+- ⏱️ **刷新时间**: 显示上次数据刷新时间
+
+### 交互与筛选
+- 🔄 **实时刷新**: 支持手动刷新，并可设置自动刷新间隔（10s/30s/60s，带倒计时）
+- 🔌 **端口跳转**: 点击端口号直接跳转 `http(s)://地址:端口`，支持内网/外网地址切换
+- 🔐 **登录鉴权**: 可选的会话登录保护，用户名/密码在应用设置中配置
+- 🎯 **智能排序**: 支持按端口升/降序、服务名、来源多种排序方式
+- 🔎 **搜索过滤**: 按端口、进程、服务名、容器名、协议搜索
+- 🔌 **协议过滤**: 支持 TCP/UDP 协议过滤与统计切换
+- 🐳 **按容器筛选**: 侧边栏动态列出容器，一键只看某容器的端口
+- 🔒 **端口范围锁定**: 指定端口范围查看，并提供「知名/注册/动态」快速预设
+- 💡 **变更高亮**: 刷新后自动高亮新出现的端口
 - 👁️ **端口隐藏**: 支持隐藏不需要显示的端口，提供"已隐藏"标签页查看
 - 📋 **批量操作**: 支持批量隐藏/取消隐藏端口范围
 - 🎨 **虚拟端口**: 隐藏端口以虚线边框样式区分显示
-- ⚡ **实时同步**: 隐藏/取消隐藏操作后立即更新显示状态
+- 📥 **数据导出**: 一键导出当前端口列表为 CSV（UTF-8，中文无乱码）
 
 ## 🖼️ 界面预览
 
@@ -182,7 +197,7 @@ python app.py --help
 
 - Docker Engine 20.10+
 - Docker Compose 2.0+
-- Linux系统（支持netstat命令）
+- Linux系统（host 网络模式，psutil 读取 `/proc/net`）
 - 端口7577可用
 
 ## 🔧 技术架构
@@ -338,8 +353,9 @@ docker run -d --name dockports --network host \
    - 识别host网络模式容器
 
 2. **系统端口**：
-   - 使用netstat扫描监听端口
-   - 支持TCP和UDP协议
+   - 使用 psutil（`net_connections`）扫描监听端口
+   - 支持TCP和UDP协议、IPv4/IPv6 区分
+   - 统计每个端口的活跃连接数
    - 识别系统服务占用的端口
 
 ### 可视化展示
@@ -362,20 +378,25 @@ docker run -d --name dockports --network host \
    - 支持取消隐藏操作
 
 4. **标签页导航**：
-   - 全部端口
-   - 已使用端口
-   - 可用端口
-   - 已隐藏端口
+   - 全部
+   - 宿主机
+   - 容器
+   - 未使用
+   - 已隐藏
 
 5. **统计信息**：
    - 已使用端口总数
    - 可用端口总数
    - Docker容器数量
+   - TCP 端口数
+   - UDP 端口数
 
 ## 🛠️ API接口
 
 ### GET /api/ports
 获取端口信息
+
+**查询参数**：`protocol`(TCP/UDP)、`start_port`、`end_port`、`search`
 
 **响应示例**：
 ```json
@@ -386,20 +407,53 @@ docker run -d --name dockports --network host \
       {
         "port": 80,
         "type": "used",
-        "container_name": "nginx",
+        "container": "nginx",
         "container_port": "80/tcp",
+        "image": "nginx:latest",
+        "protocol": "TCP",
+        "connection_count": 3,
         "source": "docker"
       }
     ],
     "total_used": 10,
     "total_available": 65525,
-    "docker_containers": 5
+    "tcp_used": 8,
+    "udp_used": 2,
+    "docker_containers": 5,
+    "docker_container_names": ["nginx", "redis"],
+    "host_ip": "192.168.1.10",
+    "external_host": "nas.example.com",
+    "server_time": "07:15:30",
+    "docker_connected": true
   }
 }
 ```
 
 ### GET /api/refresh
-刷新端口信息
+重连 Docker 客户端并刷新端口信息
+
+### 登录鉴权
+
+#### GET /login · POST /login
+登录页与登录处理（开启鉴权后生效）
+
+#### GET /logout
+退出登录
+
+#### GET /api/settings
+获取应用设置（脱敏，不含密码哈希与密钥）：内网/外网地址、自动检测 IP、鉴权开关与用户名
+
+#### POST /api/settings
+保存应用设置（内网地址、外网地址、鉴权开关、用户名、可选新密码）
+```json
+{
+  "intranet_host": "192.168.1.10",
+  "external_host": "nas.example.com",
+  "enabled": true,
+  "username": "admin",
+  "password": "可选，留空不修改"
+}
+```
 
 ### 隐藏端口管理
 
@@ -457,9 +511,13 @@ docker run -d --name dockports --network host \
    - 确保Docker socket已正确映射
    - 检查容器是否有访问Docker的权限
 
-3. **netstat命令不可用**：
-   - 确保容器内安装了net-tools包
-   - 检查/proc目录是否正确映射
+3. **端口扫描不到/为空**：
+   - 必须使用 `--network host` 模式，psutil 才能读取宿主机 `/proc/net`
+   - 确认容器以足够权限运行
+
+4. **忘记登录密码**：
+   - 编辑 `config/settings.json`，将 `auth.enabled` 改为 `false` 后重启容器
+   - 或删除该文件由程序重新生成（会重置所有应用设置）
 
 4. **端口7577被占用**：
    - 修改docker-compose.yml中的端口映射
@@ -504,7 +562,22 @@ docker logs -f dockports
 
 ## 📝 更新日志
 
-### v0.2.1 (最新)
+### v0.3.0 (最新)
+- 🔐 **登录鉴权**：新增可选的会话登录保护，凭据在应用设置面板配置（werkzeug 哈希，secret_key 持久化）
+- 🔌 **端口跳转**：点击端口号直接跳转 `http(s)://地址:端口`，支持内网/外网地址切换
+- ⚡ **psutil 替换 netstat**：去除 net-tools 系统依赖，跨平台读取监听端口
+- 🔄 **自动刷新**：可设置 10s/30s/60s 自动刷新间隔，带倒计时，静默刷新不打断操作
+- 🌙 **深色模式**：一键切换深色/浅色主题，偏好本地持久化
+- 🟢 **Docker 状态 + 刷新时间**：工具栏显示 Docker 连接状态指示灯与上次刷新时间
+- 📦 **容器详情 + 连接数**：卡片显示镜像名、活跃连接数，悬浮展示详情
+- 🐳 **按容器筛选**：侧边栏动态列出容器，一键筛选
+- 🎯 **排序与导出**：支持端口/名称/来源排序，一键导出 CSV
+- 🔒 **端口范围预设**：知名/注册/动态端口一键锁定
+- 💡 **变更高亮**：刷新后高亮新增端口
+- 🎨 **界面优化**：工具栏三行式布局重构、统计栏卡片化、深色适配
+- 🐛 **修复**：协议标签前后端分隔符不一致、动态文字导致的布局错位等问题
+
+### v0.2.1
 - 🔧 修复`config.json`配置文件的读取、保存、结构
 - ⚙️ `config.json`修改为`"服务名:docker/host":"端口:/tcp/udp"`的格式
 - 📊 添加端口名称时，现在可以选择是`宿主机服务`，还是`Docker服务`

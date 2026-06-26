@@ -206,6 +206,7 @@ def default_settings():
     """生成默认应用设置（含随机 secret_key）"""
     return {
         'intranet_host': '',
+        'external_host': '',
         'auth': {
             'enabled': False,
             'username': 'admin',
@@ -235,6 +236,9 @@ def init_settings():
     changed = False
     if 'intranet_host' not in data:
         data['intranet_host'] = base['intranet_host']
+        changed = True
+    if 'external_host' not in data:
+        data['external_host'] = base['external_host']
         changed = True
     if not isinstance(data.get('auth'), dict):
         data['auth'] = base['auth']
@@ -963,8 +967,9 @@ def api_ports():
         
         port_data = port_monitor.get_port_analysis(start_port=start_port, end_port=end_port, protocol_filter=protocol_filter)
 
-        # 提供有效内网地址，供前端拼接端口跳转链接
+        # 提供内网/外网地址，供前端拼接端口跳转链接
         port_data['host_ip'] = get_effective_host()
+        port_data['external_host'] = (settings.get('external_host') or '').strip()
 
         # 处理搜索参数
         search = request.args.get('search', '').strip().lower()
@@ -1212,6 +1217,7 @@ def api_get_settings():
             'success': True,
             'data': {
                 'intranet_host': settings.get('intranet_host', ''),
+                'external_host': settings.get('external_host', ''),
                 'detected_ip': detect_intranet_ip(),
                 'auth': {
                     'enabled': bool(auth.get('enabled')),
@@ -1238,6 +1244,10 @@ def api_save_settings():
         # 内网地址
         if 'intranet_host' in data:
             new_settings['intranet_host'] = (data.get('intranet_host') or '').strip()
+
+        # 外网地址
+        if 'external_host' in data:
+            new_settings['external_host'] = (data.get('external_host') or '').strip()
 
         # 鉴权相关
         auth = new_settings.setdefault('auth', {})

@@ -331,6 +331,36 @@
             background: rgba(255, 255, 255, 0.5);
         }
 
+        /* 跳转目标切换（内网/外网），沿用协议切换样式 */
+        .target-toggle {
+            display: flex;
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 0.25rem;
+        }
+        .target-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #718096;
+            font-size: 0.9rem;
+        }
+        .target-btn.active {
+            background: white;
+            color: #4a5568;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .target-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        .target-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         /* 响应式布局 */
         @media (max-width: 768px) {
             .main-container {
@@ -1291,6 +1321,10 @@
                                 <button class="protocol-btn" data-protocol="tcp">TCP</button>
                                 <button class="protocol-btn" data-protocol="udp">UDP</button>
                             </div>
+                            <div class="target-toggle" title="端口点击跳转目标">
+                                <button class="target-btn active" data-target="intranet">🏠 内网</button>
+                                <button class="target-btn" data-target="external" id="externalTargetBtn">🌐 外网</button>
+                            </div>
                             <div class="view-toggle">
                                 <button class="view-btn active" data-view="card">🔲 卡片</button>
                                 <button class="view-btn" data-view="list">📋 列表</button>
@@ -1369,6 +1403,13 @@
             </div>
 
             <div class="config-section">
+                <h3>外网地址</h3>
+                <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">公网域名或 IP（不含 http://）。设置后可在主界面切换「外网」跳转目标。</p>
+                <input type="text" id="externalHost" placeholder="例如 nas.example.com 或 公网IP（留空则禁用外网跳转）"
+                       style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+            </div>
+
+            <div class="config-section">
                 <h3>登录鉴权</h3>
                 <p style="color: #666; margin-bottom: 0.8rem; font-size: 0.9rem;">开启后访问需登录。首次开启请先设置密码。</p>
                 <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; cursor: pointer;">
@@ -1403,6 +1444,8 @@
         let currentProtocol = 'all'; // 当前协议过滤器
         let searchTimeout = null;
         let hostIp = ''; // 内网地址，用于端口卡片跳转链接
+        let externalHost = ''; // 外网地址（域名或公网IP）
+        let jumpTarget = 'intranet'; // 当前跳转目标：intranet / external
         
         // 端口范围锁定相关变量
         let isPortRangeLocked = false;
@@ -1461,6 +1504,14 @@
                 btn.addEventListener('click', function() {
                     const protocol = this.getAttribute('data-protocol');
                     switchProtocol(protocol);
+                });
+            });
+
+            // 跳转目标切换（内网/外网）
+            document.querySelectorAll('.target-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const target = this.getAttribute('data-target');
+                    switchJumpTarget(target);
                 });
             });
             
@@ -1565,6 +1616,41 @@
             
             // 重新加载端口数据
             loadPorts();
+        }
+
+        // 切换端口跳转目标（内网/外网）
+        function switchJumpTarget(target) {
+            // 外网未配置时不允许切换
+            if (target === 'external' && !externalHost) {
+                showMessage('请先在「应用设置」中配置外网地址', 'error');
+                return;
+            }
+            jumpTarget = target;
+
+            document.querySelectorAll('.target-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-target="${target}"]`).classList.add('active');
+
+            // 仅链接改变，无需重新请求，直接重渲染
+            displayPorts(filterPorts(portsData));
+        }
+
+        // 根据是否配置外网地址，更新外网按钮可用状态
+        function updateTargetToggle() {
+            const externalBtn = document.getElementById('externalTargetBtn');
+            if (!externalBtn) return;
+            if (externalHost) {
+                externalBtn.disabled = false;
+                externalBtn.title = '跳转到外网地址';
+            } else {
+                externalBtn.disabled = true;
+                externalBtn.title = '未配置外网地址';
+                // 外网不可用时回退到内网
+                if (jumpTarget === 'external') {
+                    switchJumpTarget('intranet');
+                }
+            }
         }
 
         /**
@@ -1846,6 +1932,8 @@
                 if (result.success) {
                     portsData = result.data;
                     if (result.data.host_ip) hostIp = result.data.host_ip;
+                    externalHost = result.data.external_host || '';
+                    updateTargetToggle();
                     displayPorts(filterPorts(portsData));
                     updateStats(portsData);
                 } else {
@@ -1905,6 +1993,8 @@
                 if (result.success) {
                     portsData = result.data;
                     if (result.data.host_ip) hostIp = result.data.host_ip;
+                    externalHost = result.data.external_host || '';
+                    updateTargetToggle();
                     displayPorts(filterPorts(portsData));
                     updateStats(portsData);
                 } else {
@@ -1934,13 +2024,15 @@
         }
 
         /**
-         * 构建端口跳转链接（内网地址 + 端口）
+         * 构建端口跳转链接（内网/外网地址 + 端口）
          * 加密端口(443/8443/9443)用 https，其余 http
+         * 选择外网但未配置外网地址时，回退到内网地址
          */
         function buildJumpUrl(port) {
-            if (!hostIp) return null;
+            const host = (jumpTarget === 'external' && externalHost) ? externalHost : hostIp;
+            if (!host) return null;
             const proto = [443, 8443, 9443].includes(port) ? 'https' : 'http';
-            return `${proto}://${hostIp}:${port}`;
+            return `${proto}://${host}:${port}`;
         }
 
         /**
@@ -2315,6 +2407,7 @@
                 }
                 const d = result.data;
                 document.getElementById('intranetHost').value = d.intranet_host || '';
+                document.getElementById('externalHost').value = d.external_host || '';
                 document.getElementById('detectedIpHint').textContent =
                     '当前自动检测到的内网 IP：' + (d.detected_ip || '未知');
                 document.getElementById('authEnabled').checked = !!d.auth.enabled;
@@ -2343,6 +2436,7 @@
 
             const payload = {
                 intranet_host: document.getElementById('intranetHost').value.trim(),
+                external_host: document.getElementById('externalHost').value.trim(),
                 enabled: document.getElementById('authEnabled').checked,
                 username: document.getElementById('authUsername').value.trim()
             };

@@ -4,3 +4,6 @@ config/settings.json
 # Python
 __pycache__/
 *.py[cod]
+
+# 临时截图
+*.png

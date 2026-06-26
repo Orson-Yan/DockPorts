@@ -290,9 +290,9 @@
 
         .action-buttons {
             display: flex;
-            flex-flow: row nowrap;
+            flex-flow: row wrap;
             justify-content: flex-end;
-            gap: 0.4rem;
+            gap: 0.35rem;
             max-width: none;
         }
 
@@ -300,14 +300,14 @@
             width: auto;
             min-width: 0;
             white-space: nowrap;
-            padding: 0.5rem 0.7rem;
-            font-size: 0.85rem;
+            padding: 0.45rem 0.6rem;
+            font-size: 0.8rem;
         }
 
         /* 以下元素文字会随运行时状态变化，固定最小宽度按最宽态预留，
            避免宽度跳动挤压同行其它元素导致错位/换行 */
         #refreshBtn {
-            min-width: 96px;
+            min-width: 84px;
             text-align: center;
         }
         #lastRefreshTime {
@@ -333,13 +333,14 @@
         }
 
         .view-btn {
-            padding: 0.5rem 1rem;
+            padding: 0.45rem 0.75rem;
             border: none;
             background: transparent;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
             color: #718096;
+            font-size: 0.9rem;
         }
 
         .view-btn.active {
@@ -356,7 +357,7 @@
         }
 
         .protocol-btn {
-            padding: 0.5rem 1rem;
+            padding: 0.45rem 0.75rem;
             border: none;
             background: transparent;
             border-radius: 6px;
@@ -384,7 +385,7 @@
             padding: 0.25rem;
         }
         .target-btn {
-            padding: 0.5rem 1rem;
+            padding: 0.45rem 0.75rem;
             border: none;
             background: transparent;
             border-radius: 6px;
@@ -1687,8 +1688,8 @@
                         <button id="exportBtn" class="settings-btn" onclick="exportCSV()" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">📥 导出</button>
                         <button id="darkModeBtn" class="settings-btn dark-mode-btn" onclick="toggleDarkMode()">🌙 深色</button>
                         <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
-                        <button id="appSettingsBtn" class="settings-btn" onclick="openAppSettings()">🛠️ 应用设置</button>
-                        <button id="logoutBtn" class="settings-btn" onclick="location.href='/logout'" style="display: none;">🚪 退出登录</button>
+                        <button id="appSettingsBtn" class="settings-btn" onclick="openAppSettings()" title="应用设置">🛠️ 应用</button>
+                        <button id="logoutBtn" class="settings-btn" onclick="location.href='/logout'" style="display: none;" title="退出登录">🚪 退出</button>
                     </div>
                 </div>
 

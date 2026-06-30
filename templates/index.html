@@ -823,7 +823,27 @@
             background: #a0aec0;
             color: white;
         }
-        
+
+        .port-source-badge.reserved {
+            background: #e2e8f0;
+            color: #718096;
+        }
+
+        /* 预留端口卡片（已停止容器声明，未占用）：灰显 + 虚线边框 */
+        .port-card.reserved {
+            background: #f7fafc;
+            border: 1px dashed #cbd5e0;
+            opacity: 0.85;
+        }
+        body.dark .port-card.reserved {
+            background: #2d3748;
+            border-color: #4a5568;
+        }
+        body.dark .port-source-badge.reserved {
+            background: #4a5568;
+            color: #cbd5e0;
+        }
+
         .port-card.hidden {
             background: #f7fafc;
             border-color: #e2e8f0;
@@ -1502,6 +1522,7 @@
                             🔄 刷新
                         </button>
                         <button id="exportBtn" class="settings-btn" onclick="exportCSV()" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">📥 导出</button>
+                        <button id="reservedBtn" class="settings-btn" onclick="toggleReserved()" title="显示已停止容器声明的端口（预留，未占用）">⏸ 预留</button>
                         <button id="darkModeBtn" class="settings-btn dark-mode-btn" onclick="toggleDarkMode()">🌙 深色</button>
                         <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
                         <button id="logoutBtn" class="settings-btn" onclick="location.href='/logout'" style="display: none;" title="退出登录">🚪 退出</button>
@@ -1665,6 +1686,7 @@
         let currentFilter = 'all';
         let currentView = 'card';
         let currentProtocol = 'all'; // 当前协议过滤器
+        let showReserved = false; // 是否显示「已停止容器声明的预留端口」
         let searchTimeout = null;
         let hostIp = ''; // 内网地址，用于端口卡片跳转链接
         let externalHost = ''; // 外网地址（域名或公网IP）
@@ -1874,7 +1896,10 @@
                     case 'system':
                         return !isHidden && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'system';
                     case 'container':
-                        return !isHidden && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'docker';
+                        return !isHidden && (
+                            ((card.type === 'used' || card.type === 'unknown_range') && card.source === 'docker')
+                            || card.type === 'reserved'
+                        );
                     case 'unused':
                         return !isHidden && card.type === 'gap';
                     case 'hidden':
@@ -2011,7 +2036,10 @@
                 if (currentProtocol !== 'all') {
                     params.append('protocol', currentProtocol.toUpperCase());
                 }
-                
+                if (showReserved) {
+                    params.append('reserved', '1');
+                }
+
                 if (params.toString()) {
                     url += '?' + params.toString();
                 }
@@ -2060,11 +2088,14 @@
                 // 构建API URL，包含协议过滤器和端口范围
                 let apiUrl = '/api/ports';
                 const params = new URLSearchParams();
-                
+
                 if (currentProtocol !== 'all') {
                     params.append('protocol', currentProtocol.toUpperCase());
                 }
-                
+                if (showReserved) {
+                    params.append('reserved', '1');
+                }
+
                 if (params.toString()) {
                     apiUrl += '?' + params.toString();
                 }
@@ -2250,6 +2281,7 @@
                                 <div class="service-name">${displayName}</div>
                                 ${hasTooltipDetail ? `<span class="tooltiptext">${tooltipDetail}</span>` : ''}
                             </div>
+                            ${card.reserved_by && card.reserved_by.length ? `<div style="font-size: 0.68rem; color: #dd6b20; margin-top: 0.1rem;" title="以下已停止容器也声明了此端口，启动会撞端口">⚠ 停止容器也声明: ${card.reserved_by.join(', ')}</div>` : ''}
                             ${card.image ? `<div class="image-name" title="${card.image}">📦 ${card.image}</div>` : ''}
                             <div style="margin-top: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; flex-wrap: wrap;">
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
@@ -2377,15 +2409,62 @@
                                 ${card.protocol ? `<span style="font-size: 0.7rem; color: #666; background: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 4px; height: 20px; display: flex; align-items: center; line-height: 20px;">${card.protocol.toUpperCase()}</span>` : ''}
                                 <button class="add-port-btn list-add-btn" onclick="editPortRangeName(${card.start_port}, ${card.end_port})" title="批量添加端口到配置文件">+</button>
                                 <span class="port-source-badge ${card.source}" style="height: 20px; display: flex; align-items: center; line-height: 20px;">${card.source === 'docker' ? 'Docker' : '宿主机'}</span>
-                                ${isHidden ? 
+                                ${isHidden ?
                                     `<button class="hide-port-btn list-hide-btn" onclick="unhidePortRange(${card.start_port}, ${card.end_port})" title="取消隐藏此端口范围">👁️</button>` :
                                     `<button class="hide-port-btn list-hide-btn" onclick="hidePortRange(${card.start_port}, ${card.end_port})" title="隐藏此端口范围">👁️‍🗨️</button>`
                                 }
                             </div>
                         </div>
                     `;
+                } else if (card.type === 'reserved') {
+                    // 已停止容器声明的预留端口（未占用）
+                    cardEl.classList.add('reserved');
+                    listEl.classList.add('reserved');
+                    const names = (card.containers || []).join(', ');
+
+                    // 卡片视图
+                    cardEl.innerHTML = `
+                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                            <div class="port-number" style="color: #a0aec0;">${card.port}</div>
+                            <div class="tooltip">
+                                <div class="service-name">${card.service_name || '已停止容器'}</div>
+                            </div>
+                            <div style="font-size: 0.72rem; color: #a0aec0; margin-top: 0.1rem;" title="${names}">⏸ ${names}</div>
+                            ${card.image ? `<div class="image-name" title="${card.image}">📦 ${card.image}</div>` : ''}
+                            <div style="margin-top: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; flex-wrap: wrap;">
+                                ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
+                            </div>
+                        </div>
+                        <div class="port-card-footer">
+                            <div class="port-card-actions"></div>
+                            <div class="port-card-center">
+                                <span class="port-source-badge reserved" title="已停止容器声明，端口当前未占用">⏸ 已停止</span>
+                            </div>
+                            <div class="port-card-actions">
+                                <button class="hide-port-btn" onclick="hidePort(${card.port})" title="隐藏此端口">👁️‍🗨️</button>
+                            </div>
+                        </div>
+                    `;
+
+                    // 列表视图
+                    listEl.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                            <div style="font-size: 1.2rem; font-weight: bold; min-width: 80px; color: #a0aec0;">${card.port}</div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+                                <span>⏸</span>
+                                <div class="tooltip" style="flex: 1; min-width: 0;">
+                                    <div class="process-name">${card.service_name || '已停止容器'} <span style="color:#a0aec0; font-size:0.8rem;">(${names})</span></div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center; height: 24px;">
+                                ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
+                                <span class="port-source-badge reserved" style="height: 20px; display: flex; align-items: center; line-height: 20px;">⏸ 已停止</span>
+                                <button class="hide-port-btn list-hide-btn" onclick="hidePort(${card.port})" title="隐藏此端口">👁️‍🗨️</button>
+                            </div>
+                        </div>
+                    `;
                 }
-                
+
                 container.appendChild(cardEl);
                 container.appendChild(listEl);
             });
@@ -2463,6 +2542,28 @@
         }
 
         /**
+         * 端口预留显示开关（已停止容器声明的端口）
+         */
+        function updateReservedBtn() {
+            const btn = document.getElementById('reservedBtn');
+            if (!btn) return;
+            btn.classList.toggle('active', showReserved);
+            btn.style.opacity = showReserved ? '1' : '0.6';
+        }
+
+        function initReserved() {
+            showReserved = localStorage.getItem('dockports-show-reserved') === 'true';
+            updateReservedBtn();
+        }
+
+        function toggleReserved() {
+            showReserved = !showReserved;
+            localStorage.setItem('dockports-show-reserved', showReserved ? 'true' : 'false');
+            updateReservedBtn();
+            loadPorts();
+        }
+
+        /**
          * 自动刷新
          */
         function setAutoRefresh(value) {
@@ -2498,6 +2599,7 @@
                 let apiUrl = '/api/ports';
                 const params = new URLSearchParams();
                 if (currentProtocol !== 'all') params.append('protocol', currentProtocol.toUpperCase());
+                if (showReserved) params.append('reserved', '1');
                 if (params.toString()) apiUrl += '?' + params.toString();
                 const response = await fetch(apiUrl);
                 const result = await response.json();
@@ -2626,6 +2728,9 @@
                     typeStr = '可用';
                 } else if (card.type === 'unknown_range') {
                     portStr = `${card.start_port}-${card.end_port}`;
+                } else if (card.type === 'reserved') {
+                    portStr = card.port;
+                    typeStr = '预留(已停止)';
                 }
                 rows.push([
                     typeStr,
@@ -3342,6 +3447,7 @@
         // 页面加载完成后自动加载数据
         document.addEventListener('DOMContentLoaded', function() {
             initDarkMode();
+            initReserved();
             loadHiddenPorts().then(() => {
                 loadPorts();
             });

@@ -321,6 +321,10 @@ class PortMonitor:
         self.cache_timestamp = 0   # 缓存时间戳
         self.cache_ttl = 30        # 缓存生存时间（秒）
 
+        # 已停止容器「声明端口」缓存（端口预留功能用）
+        self.stopped_cache = {}
+        self.stopped_cache_ts = 0
+
         self.reconnect()
         
         # 默认端口服务映射
@@ -344,6 +348,8 @@ class PortMonitor:
         # 重连后旧缓存失效
         self.container_cache = {}
         self.cache_timestamp = 0
+        self.stopped_cache = {}
+        self.stopped_cache_ts = 0
 
     def get_docker_ports(self):
         """获取Docker容器端口映射信息"""
@@ -654,8 +660,104 @@ class PortMonitor:
         
         self.cache_timestamp = current_time
         return self.container_cache
-    
-    def get_port_analysis(self, start_port=1, end_port=65535, protocol_filter=None):
+
+    def get_stopped_container_ports(self):
+        """获取「已停止容器」声明的端口映射（端口预留信息，带 30 秒缓存）
+
+        返回 {host_port: {'protocol': 'TCP'/'UDP',
+                          'containers': [{'name','container_port','image','status'}, ...]}}
+        说明：已停止容器不占用端口，这里读取的是其 HostConfig.PortBindings 中
+        声明的宿主端口（意图），用于「撞端口」规划。host 网络容器无 PortBindings，
+        初版不处理。
+        """
+        current_time = time.time()
+        if (current_time - self.stopped_cache_ts) < self.cache_ttl and self.stopped_cache:
+            return self.stopped_cache
+
+        result = {}
+        if not self.docker_client:
+            self.stopped_cache = result
+            self.stopped_cache_ts = current_time
+            return result
+
+        try:
+            # 取所有非运行容器（exited/created/dead 等）。paused 仍占用端口，按运行处理（不取）
+            containers = self.docker_client.containers.list(
+                all=True, filters={'status': ['exited', 'created', 'dead']}
+            )
+            for container in containers:
+                try:
+                    name = container.name
+                    image = container.attrs.get('Config', {}).get('Image', '')
+                    host_config = container.attrs.get('HostConfig', {}) or {}
+                    port_bindings = host_config.get('PortBindings') or {}
+                    # port_bindings 形如 {"80/tcp": [{"HostIp":"","HostPort":"8080"}], ...}
+                    for container_port, bindings in port_bindings.items():
+                        if not bindings:
+                            continue
+                        proto = 'UDP' if '/udp' in container_port.lower() else 'TCP'
+                        for b in bindings:
+                            hp = (b or {}).get('HostPort')
+                            if not hp:
+                                continue
+                            try:
+                                host_port = int(hp)
+                            except (ValueError, TypeError):
+                                continue
+                            if not (1 <= host_port <= 65535):
+                                continue
+                            entry = result.setdefault(
+                                host_port, {'protocol': proto, 'containers': []}
+                            )
+                            # 同端口多协议时合并标注
+                            if proto not in entry['protocol']:
+                                entry['protocol'] = ','.join(sorted(set(
+                                    entry['protocol'].split(',') + [proto]
+                                )))
+                            entry['containers'].append({
+                                'name': name,
+                                'container_port': container_port,
+                                'image': image,
+                                'status': container.status
+                            })
+                except Exception as e:
+                    logger.warning(f"处理已停止容器 {getattr(container, 'name', '?')} 失败，已跳过: {e}")
+        except Exception as e:
+            logger.error(f"获取已停止容器端口失败: {e}")
+
+        self.stopped_cache = result
+        self.stopped_cache_ts = current_time
+        return result
+
+    def _build_reserved_card(self, port, entry):
+        """根据预留端口信息构建一张 reserved 卡片"""
+        names = sorted(set(c['name'] for c in entry['containers']))
+        first = entry['containers'][0] if entry['containers'] else {}
+        # 服务名优先取配置文件映射
+        svc = None
+        for sname, sconf in config.items():
+            if isinstance(sconf, dict) and sconf.get('port') == port:
+                svc = sname
+                break
+        if svc:
+            service_name = svc
+        elif names:
+            service_name = names[0]
+        else:
+            service_name = '已停止容器'
+        return {
+            'type': 'reserved',
+            'port': port,
+            'protocol': entry.get('protocol', 'TCP'),
+            'containers': names,
+            'container': names[0] if names else None,
+            'service_name': service_name,
+            'image': first.get('image', ''),
+            'container_port': first.get('container_port', ''),
+            'status': first.get('status', '')
+        }
+
+    def get_port_analysis(self, start_port=1, end_port=65535, protocol_filter=None, include_reserved=False):
         """分析端口使用情况并生成可视化数据"""
         docker_ports = self.get_docker_ports()
         host_ports_info = self.get_host_ports()
@@ -919,6 +1021,70 @@ class PortMonitor:
 
             port_cards = filtered_port_cards
 
+        # ===== 端口预留（已停止容器声明的端口）=====
+        reserved_count = 0
+        if include_reserved:
+            reserved_map = self.get_stopped_container_ports()
+            all_used_ports = tcp_ports.union(udp_ports)
+
+            free_reserved = {}   # port -> entry，落在空闲区间、需单独成卡的预留端口
+            for port, entry in reserved_map.items():
+                # 端口范围过滤
+                if port < start_port or port > end_port:
+                    continue
+                # 协议过滤
+                if protocol_filter and protocol_filter.upper() not in entry['protocol'].upper():
+                    continue
+                # 隐藏过滤
+                if hidden_ports and port in hidden_ports:
+                    continue
+
+                names = sorted(set(c['name'] for c in entry['containers']))
+                if port in all_used_ports:
+                    # 冲突：该端口此刻已被占用 -> 在对应 used 卡上加注记，不单独成卡
+                    for card in port_cards:
+                        if card.get('type') == 'used' and card.get('port') == port:
+                            card['reserved_by'] = names
+                            break
+                        if card.get('type') == 'unknown_range' and \
+                           card.get('start_port', 0) <= port <= card.get('end_port', 0):
+                            card.setdefault('reserved_by', [])
+                            for n in names:
+                                if n not in card['reserved_by']:
+                                    card['reserved_by'].append(n)
+                            break
+                else:
+                    free_reserved[port] = entry
+
+            # 把空闲的预留端口从 gap 卡中「挖」出来，单独成 reserved 卡
+            if free_reserved:
+                new_cards = []
+                for card in port_cards:
+                    if card.get('type') != 'gap':
+                        new_cards.append(card)
+                        continue
+                    g_start, g_end = card['start_port'], card['end_port']
+                    rps = sorted(p for p in free_reserved if g_start <= p <= g_end)
+                    if not rps:
+                        new_cards.append(card)
+                        continue
+                    cursor = g_start
+                    for rp in rps:
+                        if rp > cursor:
+                            new_cards.append({
+                                'type': 'gap', 'start_port': cursor,
+                                'end_port': rp - 1, 'available_count': rp - cursor
+                            })
+                        new_cards.append(self._build_reserved_card(rp, free_reserved[rp]))
+                        reserved_count += 1
+                        cursor = rp + 1
+                    if cursor <= g_end:
+                        new_cards.append({
+                            'type': 'gap', 'start_port': cursor,
+                            'end_port': g_end, 'available_count': g_end - cursor + 1
+                        })
+                port_cards = new_cards
+
         # 「按容器筛选」列表：只列出在当前展示结果中确实有端口卡片的容器，
         # 避免列出无可见端口的容器（如 buildkit）导致点击后结果为空。
         # 从最终 port_cards（已过隐藏过滤）收集，保证点任意容器都有结果。
@@ -940,7 +1106,8 @@ class PortMonitor:
             'docker_containers': docker_container_count,
             'docker_container_names': filter_container_names,
             'hidden_ports': hidden_ports,
-            'protocol_filter': protocol_filter
+            'protocol_filter': protocol_filter,
+            'reserved_count': reserved_count
         }
 
 # 创建端口监控实例
@@ -1023,7 +1190,12 @@ def api_ports():
             start_port = 1
             end_port = 65535
         
-        port_data = port_monitor.get_port_analysis(start_port=start_port, end_port=end_port, protocol_filter=protocol_filter)
+        # 是否包含「已停止容器声明的预留端口」
+        include_reserved = request.args.get('reserved', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+        port_data = port_monitor.get_port_analysis(start_port=start_port, end_port=end_port,
+                                                   protocol_filter=protocol_filter,
+                                                   include_reserved=include_reserved)
 
         # 提供内网/外网地址，供前端拼接端口跳转链接
         port_data['host_ip'] = get_effective_host()
@@ -1095,7 +1267,18 @@ def api_ports():
                     
                     if is_match:
                         filtered_cards.append(card)
-            
+                elif card['type'] == 'reserved':
+                    # 搜索预留端口：端口号、服务名、容器名、协议
+                    searchable_text = ' '.join([
+                        str(card.get('port', '')),
+                        card.get('service_name', '') or '',
+                        ' '.join(card.get('containers', []) or []),
+                        card.get('protocol', '') or '',
+                        '预留', '已停止', 'reserved'
+                    ]).lower()
+                    if search in searchable_text:
+                        filtered_cards.append(card)
+
             # 按端口排序
             filtered_cards = sorted(filtered_cards, key=lambda x: x.get('port', x.get('start_port', 0)))
             
@@ -1348,7 +1531,8 @@ def api_refresh():
     try:
         # 重新连接Docker客户端并清空缓存
         port_monitor.reconnect()
-        port_data = port_monitor.get_port_analysis()
+        include_reserved = request.args.get('reserved', '').strip().lower() in ('1', 'true', 'yes', 'on')
+        port_data = port_monitor.get_port_analysis(include_reserved=include_reserved)
         port_data['host_ip'] = get_effective_host()
         port_data['external_host'] = (settings.get('external_host') or '').strip()
         port_data['server_time'] = datetime.now().strftime('%H:%M:%S')

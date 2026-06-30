@@ -1310,6 +1310,70 @@
             max-width: 100%;
         }
 
+        /* ===== 卡片信息重排（更清爽） ===== */
+        .port-card { padding-top: 1.6rem; }   /* 顶部留出角标空间 */
+        .pc-source-tag {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            font-size: 0.62rem;
+            padding: 0.08rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+        .pc-head {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.1rem;
+        }
+        .pc-name { max-width: 100%; }
+        .pc-name .service-name {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        body.dark .pc-name .service-name { color: #e2e8f0; }
+        .pc-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.25rem 0.35rem;
+            margin-top: 0.4rem;
+        }
+        .pc-chip {
+            font-size: 0.65rem;
+            color: #718096;
+            background: rgba(0, 0, 0, 0.045);
+            padding: 0.07rem 0.4rem;
+            border-radius: 4px;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        body.dark .pc-chip {
+            background: rgba(255, 255, 255, 0.07);
+            color: #a0aec0;
+        }
+        .pc-warn {
+            font-size: 0.66rem;
+            color: #dd6b20;
+            margin-top: 0.35rem;
+            line-height: 1.3;
+            word-break: break-all;
+        }
+        .pc-tags {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+        /* 底部：标签靠左、操作按钮靠右 */
+        .port-card-footer { gap: 0.4rem; }
+
         /* ===== 端口变更高亮动画 ===== */
         @keyframes highlightNew {
             0% { background-color: #c6f6d5; }
@@ -2135,6 +2199,18 @@
         }
 
         /**
+         * 精简镜像名用于卡片展示：去掉仓库前缀与 tag，完整名仍在 title 中
+         * 例 "mem0/openmemory-ui:latest" -> "openmemory-ui"，"qdrant/qdrant" -> "qdrant"
+         */
+        function shortImage(image) {
+            if (!image) return '';
+            let name = image.split('/').pop();      // 去掉仓库/命名空间前缀
+            name = name.split('@')[0];              // 去掉 digest
+            name = name.replace(/:[^:]*$/, '');     // 去掉 tag
+            return name || image;
+        }
+
+        /**
          * 构建端口跳转链接（内网/外网地址 + 端口）
          * 加密端口(443/8443/9443)用 https，其余 http
          * 选择外网但未配置外网地址时，回退到内网地址
@@ -2274,30 +2350,30 @@
                         ${card.container_port ? `<br>容器端口: ${card.container_port}` : ''}
                         ${card.connection_count ? `<br>连接数: ${card.connection_count}` : ''}
                     `;
+                    const sourceLabel = card.source === 'docker' ? 'Docker' : '宿主机';
                     cardEl.innerHTML = `
-                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                        <span class="pc-source-tag port-source-badge ${card.source}">${sourceLabel}</span>
+                        <div class="pc-head">
                             ${portDisplayHtml}
-                            <div class="tooltip">
+                            <div class="tooltip pc-name">
                                 <div class="service-name">${displayName}</div>
                                 ${hasTooltipDetail ? `<span class="tooltiptext">${tooltipDetail}</span>` : ''}
                             </div>
-                            ${card.reserved_by && card.reserved_by.length ? `<div style="font-size: 0.68rem; color: #dd6b20; margin-top: 0.1rem;" title="以下已停止容器也声明了此端口，启动会撞端口">⚠ 停止容器也声明: ${card.reserved_by.join(', ')}</div>` : ''}
-                            ${card.process_name ? `<div class="image-name" title="占用进程${card.pid ? ' (PID ' + card.pid + ')' : ''}">🔧 ${card.process_name}</div>` : ''}
-                            ${card.image ? `<div class="image-name" title="${card.image}">📦 ${card.image}</div>` : ''}
-                            <div style="margin-top: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; flex-wrap: wrap;">
+                        </div>
+                        ${(card.process_name || card.image) ? `
+                        <div class="pc-meta">
+                            ${card.process_name ? `<span class="pc-chip" title="占用进程${card.pid ? ' (PID ' + card.pid + ')' : ''}">🔧 ${card.process_name}</span>` : ''}
+                            ${card.image ? `<span class="pc-chip" title="${card.image}">📦 ${shortImage(card.image)}</span>` : ''}
+                        </div>` : ''}
+                        ${card.reserved_by && card.reserved_by.length ? `<div class="pc-warn" title="以下已停止容器也声明了此端口，启动会撞端口">⚠ 停止容器也声明: ${card.reserved_by.join(', ')}</div>` : ''}
+                        <div class="port-card-footer">
+                            <div class="pc-tags">
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                                 ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
                             </div>
-                        </div>
-                        <div class="port-card-footer">
                             <div class="port-card-actions">
                                 ${isUnknownService ? `<button class="add-port-btn" onclick="editPortName(${card.port})" title="添加端口到配置文件">+</button>` : ''}
-                            </div>
-                            <div class="port-card-center">
-                                <span class="port-source-badge ${card.source}">${card.source === 'docker' ? 'Docker' : '宿主机'}</span>
-                            </div>
-                            <div class="port-card-actions">
-                                ${isHidden ? 
+                                ${isHidden ?
                                     `<button class="hide-port-btn" onclick="unhidePort(${card.port})" title="取消隐藏此端口">👁️</button>` :
                                     `<button class="hide-port-btn" onclick="hidePort(${card.port})" title="隐藏此端口">👁️‍🗨️</button>`
                                 }
@@ -2373,22 +2449,20 @@
                     
                     // 卡片视图内容 - 显示端口范围
                     cardEl.innerHTML = `
-                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                        <span class="pc-source-tag port-source-badge ${card.source}">${card.source === 'docker' ? 'Docker' : '宿主机'}</span>
+                        <div class="pc-head">
                             <div class="port-number">${formatPortRange(card.start_port, card.end_port)}</div>
-                            <div class="tooltip">
-                                <div class="service-name">未知服务 (${card.port_count}个端口)</div>
+                            <div class="pc-name">
+                                <div class="service-name">未知服务 · ${card.port_count}个</div>
                             </div>
-                            ${card.protocol ? `<div style="margin-top: 0.2rem;">${renderProtocolBadges(card.protocol)}</div>` : ''}
                         </div>
                         <div class="port-card-footer">
+                            <div class="pc-tags">
+                                ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
+                            </div>
                             <div class="port-card-actions">
                                 <button class="add-port-btn" onclick="editPortRangeName(${card.start_port}, ${card.end_port})" title="批量添加端口到配置文件">+</button>
-                            </div>
-                            <div class="port-card-center">
-                                <span class="port-source-badge ${card.source}">${card.source === 'docker' ? 'Docker' : '宿主机'}</span>
-                            </div>
-                            <div class="port-card-actions">
-                                ${isHidden ? 
+                                ${isHidden ?
                                     `<button class="hide-port-btn" onclick="unhidePortRange(${card.start_port}, ${card.end_port})" title="取消隐藏此端口范围">👁️</button>` :
                                     `<button class="hide-port-btn" onclick="hidePortRange(${card.start_port}, ${card.end_port})" title="隐藏此端口范围">👁️‍🗨️</button>`
                                 }
@@ -2425,21 +2499,19 @@
 
                     // 卡片视图
                     cardEl.innerHTML = `
-                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                        <span class="pc-source-tag port-source-badge reserved" title="已停止容器声明，端口当前未占用">⏸ 已停止</span>
+                        <div class="pc-head">
                             <div class="port-number" style="color: #a0aec0;">${card.port}</div>
-                            <div class="tooltip">
+                            <div class="pc-name">
                                 <div class="service-name">${card.service_name || '已停止容器'}</div>
                             </div>
-                            <div style="font-size: 0.72rem; color: #a0aec0; margin-top: 0.1rem;" title="${names}">⏸ ${names}</div>
-                            ${card.image ? `<div class="image-name" title="${card.image}">📦 ${card.image}</div>` : ''}
-                            <div style="margin-top: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; flex-wrap: wrap;">
-                                ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
-                            </div>
+                        </div>
+                        <div class="pc-meta">
+                            <span class="pc-chip" title="${names}">📦 ${names}</span>
                         </div>
                         <div class="port-card-footer">
-                            <div class="port-card-actions"></div>
-                            <div class="port-card-center">
-                                <span class="port-source-badge reserved" title="已停止容器声明，端口当前未占用">⏸ 已停止</span>
+                            <div class="pc-tags">
+                                ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                             </div>
                             <div class="port-card-actions">
                                 <button class="hide-port-btn" onclick="hidePort(${card.port})" title="隐藏此端口">👁️‍🗨️</button>

@@ -1,5 +1,8 @@
 # DockPorts - 容器端口监控工具
 
+> 本项目 Fork 自 [coracoo/DockPorts](https://github.com/coracoo/DockPorts)，感谢原作者的开源贡献。
+> Docker Hub 镜像：`orsoman/dockports:latest`
+
 一个现代化的 Docker 容器端口监控和可视化工具，帮助你轻松管理 NAS 或服务器上的端口使用情况。
 
 ## ✨ 功能特性

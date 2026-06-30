@@ -393,11 +393,16 @@ class PortMonitor:
                     port_connection_count[p] = port_connection_count.get(p, 0) + 1
 
             for conn in all_conns:
-                # TCP 仅取 LISTEN 状态；UDP 无连接状态(CONN_NONE)，全部收集
-                if conn.type == socket.SOCK_STREAM and conn.status != psutil.CONN_LISTEN:
-                    continue
                 if not conn.laddr:
                     continue
+                if conn.type == socket.SOCK_STREAM:
+                    # TCP: 仅 LISTEN 状态
+                    if conn.status != psutil.CONN_LISTEN:
+                        continue
+                else:
+                    # UDP: 仅绑定通配地址的 socket（服务端行为），过滤客户端临时端口
+                    if conn.laddr.ip not in ('0.0.0.0', '::'):
+                        continue
 
                 port = conn.laddr.port
                 protocol_type = 'TCP' if conn.type == socket.SOCK_STREAM else 'UDP'

@@ -2282,6 +2282,7 @@
                                 ${hasTooltipDetail ? `<span class="tooltiptext">${tooltipDetail}</span>` : ''}
                             </div>
                             ${card.reserved_by && card.reserved_by.length ? `<div style="font-size: 0.68rem; color: #dd6b20; margin-top: 0.1rem;" title="以下已停止容器也声明了此端口，启动会撞端口">⚠ 停止容器也声明: ${card.reserved_by.join(', ')}</div>` : ''}
+                            ${card.process_name ? `<div class="image-name" title="占用进程${card.pid ? ' (PID ' + card.pid + ')' : ''}">🔧 ${card.process_name}</div>` : ''}
                             ${card.image ? `<div class="image-name" title="${card.image}">📦 ${card.image}</div>` : ''}
                             <div style="margin-top: 0.2rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; flex-wrap: wrap;">
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
@@ -2322,7 +2323,7 @@
                              <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
                                  <span>${card.source === 'docker' ? '🐳' : '⚙️'}</span>
                                  <div class="tooltip" style="flex: 1; min-width: 0;">
-                                     <div class="process-name">${displayName}</div>
+                                     <div class="process-name">${displayName}${card.process_name ? ` <span style="font-size:0.78rem; color:#718096; font-weight:normal;" title="占用进程${card.pid ? ' (PID ' + card.pid + ')' : ''}">🔧 ${card.process_name}</span>` : ''}</div>
                                      ${fullName.length > 20 ? `<span class="tooltiptext">${fullName}</span>` : ''}
                                  </div>
                              </div>
@@ -2717,7 +2718,7 @@
                 showMessage('没有可导出的数据', 'error');
                 return;
             }
-            const rows = [['类型', '端口', '来源', '协议', '服务名称', '容器', '镜像', '连接数']];
+            const rows = [['类型', '端口', '来源', '协议', '服务名称', '容器', '镜像', '占用进程', '连接数']];
             sortCards(filtered.port_cards).forEach(card => {
                 let portStr = '';
                 let typeStr = '已用';
@@ -2740,6 +2741,7 @@
                     (card.service_name || '').replace(/"/g, '""'),
                     (card.container || '').replace(/"/g, '""'),
                     (card.image || '').replace(/"/g, '""'),
+                    (card.process_name || '').replace(/"/g, '""'),
                     card.connection_count != null ? card.connection_count : '-'
                 ]);
             });

@@ -422,6 +422,23 @@ class PortMonitor:
                     p = conn.laddr.port
                     port_connection_count[p] = port_connection_count.get(p, 0) + 1
 
+            # pid -> 进程名 缓存（本次调用内复用，避免重复 psutil.Process 开销）
+            proc_name_cache = {}
+
+            def resolve_proc(pid):
+                """根据 pid 解析进程名；容器内未共享 PID 命名空间/无权限时返回 None（优雅降级）"""
+                if not pid:
+                    return None
+                if pid in proc_name_cache:
+                    return proc_name_cache[pid]
+                name = None
+                try:
+                    name = psutil.Process(pid).name()
+                except Exception:
+                    name = None
+                proc_name_cache[pid] = name
+                return name
+
             for conn in all_conns:
                 if not conn.laddr:
                     continue
@@ -462,7 +479,9 @@ class PortMonitor:
                         'address': local_address,
                         'service_name': self.get_service_name(port),
                         'container_name': container_name,
-                        'connection_count': port_connection_count.get(port, 0)
+                        'connection_count': port_connection_count.get(port, 0),
+                        'pid': conn.pid,
+                        'process_name': resolve_proc(conn.pid)
                     }
 
                 logger.debug(f"发现主机使用端口: {port} ({protocol_type}/{ip_version})")
@@ -871,7 +890,9 @@ class PortMonitor:
                     'service_name': config_service_name or host_info.get('service_name', '未知服务'),
                     'container': host_info.get('container_name'),
                     'connection_count': host_info.get('connection_count', 0),
-                    'is_host_network': is_host_container
+                    'is_host_network': is_host_container,
+                    'process_name': host_info.get('process_name'),
+                    'pid': host_info.get('pid')
                 }
             port_data_list.append(card_data)
         
@@ -1218,6 +1239,7 @@ def api_ports():
                     searchable_text = ' '.join([
                         str(card.get('port', '')),
                         card.get('process', '') or '',
+                        card.get('process_name', '') or '',
                         card.get('service_name', '') or '',
                         card.get('container', '') or '',
                         card.get('protocol', '') or ''

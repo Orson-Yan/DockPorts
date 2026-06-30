@@ -1,0 +1,18 @@
+# 运行时配置（含 secret_key 与密码哈希），切勿打进镜像
+config/settings.json
+config/config.json
+config/hidden_ports.json
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 版本控制与本地元数据
+.git
+.gitignore
+.github
+.claude
+
+# 文档与临时文件
+*.png
+*.md

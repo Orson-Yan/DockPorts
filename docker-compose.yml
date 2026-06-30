@@ -2,10 +2,7 @@ version: '3.8'
 
 services:
   dockports:
-    build: .
-    # 发布时用下面镜像而不是本地构建:
-    # image: crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest # 国内镜像
-    # image: ghcr.io/coracoo/dockports:latest # github镜像
+    image: orsoman/dockports:latest
     container_name: dockports
     network_mode: host
     volumes:
@@ -13,6 +10,4 @@ services:
       - ./config:/app/config
     environment:
       - DOCKPORTS_PORT=7577  # 可修改此端口以避免冲突
-    # 如果需要使用命令行参数，可以取消注释下面的行
-    # command: ["--port", "8080", "--debug"]
     restart: unless-stopped

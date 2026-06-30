@@ -43,6 +43,8 @@
   "Web管理:host": "10000:tcp",
   "X11图形:host": "6000:tcp",
   "XMPP服务器:host": "5269:tcp",
+  "caddy:docker": "2019:tcp",
+  "dockports:docker": "7577:tcp",
   "代码质量:host": "9000:tcp",
   "会话发起:host": "5060:tcp",
   "内存缓存:host": "11211:tcp",
@@ -98,6 +100,5 @@
   "邮件接收:host": "110:tcp",
   "邮件访问:host": "143:tcp",
   "隐私代理:host": "8118:tcp",
-  "dockports:docker": "7577:tcp",
-  "caddy:docker": "2019:tcp"
+  "Clash代理:host": "7890:tcp"
 }

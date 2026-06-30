@@ -853,8 +853,9 @@ class PortMonitor:
             if port in docker_port_map:
                 # Docker容器端口
                 docker_info = docker_port_map[port]
-                # 如果配置文件中指定了service_type，使用配置文件的；否则默认为docker
-                source = config_service_type if config_service_type in ['docker', 'host'] else 'docker'
+                # source 仅有两类展示分类：docker(容器) / system(系统/宿主机)。
+                # 配置里的 service_type='host' 归到 system，否则按 docker。
+                source = 'system' if config_service_type == 'host' else 'docker'
                 card_data = {
                     'port': port,
                     'type': 'used',
@@ -874,9 +875,12 @@ class PortMonitor:
                 # 检查是否为host网络容器
                 is_host_container = bool(host_info.get('container_name'))
                 
-                # 确定source：优先使用配置文件中的service_type
-                if config_service_type in ['docker', 'host']:
-                    source = config_service_type
+                # 确定source（仅 docker/system 两类）：优先用配置 service_type，
+                # host 归 system；其次 host 网络容器归 docker；否则 system
+                if config_service_type == 'docker':
+                    source = 'docker'
+                elif config_service_type == 'host':
+                    source = 'system'
                 elif is_host_container:
                     source = 'docker'
                 else:

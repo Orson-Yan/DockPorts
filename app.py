@@ -358,34 +358,40 @@ class PortMonitor:
             logger.info(f"发现 {len(containers)} 个运行中的容器")
             
             for container in containers:
-                container_name = container.name
-                image_name = container.image.tags[0] if container.image.tags else ''
-                ports = container.attrs.get('NetworkSettings', {}).get('Ports', {})
+                # 单个容器异常不应中断整个循环（否则后续容器的端口全部丢失）
+                try:
+                    container_name = container.name
+                    # 从 attrs 读取镜像名，避免访问 container.image 触发额外 API 调用：
+                    # 若容器引用的镜像已被删除/更新，container.image.tags 会 404 并中断整个循环
+                    image_name = container.attrs.get('Config', {}).get('Image', '')
+                    ports = container.attrs.get('NetworkSettings', {}).get('Ports', {})
 
-                for container_port, host_bindings in ports.items():
-                    if host_bindings:
-                        for binding in host_bindings:
-                            host_port = int(binding['HostPort'])
-                            ports_info.append({
-                                'port': host_port,
-                                'container_name': container_name,
-                                'container_port': container_port,
-                                'image': image_name,
-                                'type': 'docker_mapped'
-                            })
-                            logger.debug(f"发现映射端口: {host_port} -> {container_name}:{container_port}")
-                
-                # 检查host网络模式的容器
-                network_mode = container.attrs.get('HostConfig', {}).get('NetworkMode', '')
-                if network_mode == 'host':
-                    ports_info.append({
-                        'port': None,  # host模式下无法直接获取端口
-                        'container_name': container_name,
-                        'container_port': 'host模式',
-                        'type': 'docker_host'
-                    })
-                    logger.debug(f"发现host模式容器: {container_name}")
-        
+                    for container_port, host_bindings in ports.items():
+                        if host_bindings:
+                            for binding in host_bindings:
+                                host_port = int(binding['HostPort'])
+                                ports_info.append({
+                                    'port': host_port,
+                                    'container_name': container_name,
+                                    'container_port': container_port,
+                                    'image': image_name,
+                                    'type': 'docker_mapped'
+                                })
+                                logger.debug(f"发现映射端口: {host_port} -> {container_name}:{container_port}")
+
+                    # 检查host网络模式的容器
+                    network_mode = container.attrs.get('HostConfig', {}).get('NetworkMode', '')
+                    if network_mode == 'host':
+                        ports_info.append({
+                            'port': None,  # host模式下无法直接获取端口
+                            'container_name': container_name,
+                            'container_port': 'host模式',
+                            'type': 'docker_host'
+                        })
+                        logger.debug(f"发现host模式容器: {container_name}")
+                except Exception as e:
+                    logger.warning(f"处理容器 {getattr(container, 'name', '?')} 端口信息失败，已跳过: {e}")
+
         except Exception as e:
             logger.error(f"获取Docker端口信息失败: {e}")
         
@@ -536,7 +542,8 @@ class PortMonitor:
                     container_info = {
                         'name': container.name,
                         'id': container.id[:12],
-                        'image': container.image.tags[0] if container.image.tags else 'unknown',
+                        # 用 attrs 读取镜像名，避免 container.image 触发 API 调用导致 404 中断循环
+                        'image': container.attrs.get('Config', {}).get('Image', 'unknown'),
                         'exposed_ports': set(),
                         'potential_ports': set(),  # 从其他配置推断的可能端口
                         'healthcheck_ports': set(),  # 从健康检查推断的端口
@@ -871,22 +878,14 @@ class PortMonitor:
             }
             port_cards.append(gap_card)
         
-        # 统计Docker容器数量：直接从 Docker API 取所有运行中容器，不依赖端口检测结果
+        # 统计Docker容器总数：直接从 Docker API 取所有运行中容器，不依赖端口检测结果
         all_running_names = []
         if self.docker_client:
             try:
                 all_running_names = sorted(c.name for c in self.docker_client.containers.list())
             except Exception:
                 pass
-        # 回退：从 port_cards 补充（兼容 Docker 不可用时）
-        from_cards = set(
-            p.get('container') or p.get('container_name', '')
-            for p in port_cards
-            if p.get('source') == 'docker' and (p.get('container') or p.get('container_name'))
-        )
-        docker_container_names = sorted((set(all_running_names) | from_cards) - {''})
-        docker_container_count = len(docker_container_names)
-        
+
         # 计算可用端口数量（基于指定的端口范围）
         total_ports_in_range = end_port - start_port + 1
         if protocol_filter:
@@ -917,9 +916,21 @@ class PortMonitor:
                 
                 if not should_hide:
                     filtered_port_cards.append(card)
-            
+
             port_cards = filtered_port_cards
-        
+
+        # 「按容器筛选」列表：只列出在当前展示结果中确实有端口卡片的容器，
+        # 避免列出无可见端口的容器（如 buildkit）导致点击后结果为空。
+        # 从最终 port_cards（已过隐藏过滤）收集，保证点任意容器都有结果。
+        filter_container_names = sorted(set(
+            (p.get('container') or p.get('container_name') or '')
+            for p in port_cards
+        ) - {''})
+
+        # 容器总数：优先用 Docker API 的运行容器数（更准确，含无可见端口的容器）；
+        # Docker 不可用时回退为有端口的容器数。
+        docker_container_count = len(all_running_names) if all_running_names else len(filter_container_names)
+
         return {
             'port_cards': port_cards,
             'total_used': len(filtered_ports),
@@ -927,7 +938,7 @@ class PortMonitor:
             'tcp_used': len(tcp_ports),
             'udp_used': len(udp_ports),
             'docker_containers': docker_container_count,
-            'docker_container_names': docker_container_names,
+            'docker_container_names': filter_container_names,
             'hidden_ports': hidden_ports,
             'protocol_filter': protocol_filter
         }

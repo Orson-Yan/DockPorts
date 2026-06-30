@@ -1769,13 +1769,20 @@
         // 切换标签页
         function switchTab(filter) {
             currentFilter = filter;
-            
-            // 更新标签页样式
+
+            // 更新标签页样式（注意：会清除所有 .tab-link 的 active，含容器筛选项）
             document.querySelectorAll('.tab-link').forEach(link => {
                 link.classList.remove('active');
             });
             document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
-            
+
+            // 切换端口分类时，取消「按容器筛选」，回到全部容器
+            // 放在样式更新之后，避免容器列表的 active 态被上面的清除覆盖
+            if (currentContainerFilter !== null) {
+                currentContainerFilter = null;
+                updateContainerFilterList(portsData.docker_container_names || []);
+            }
+
             // 显示过滤后的端口
             displayPorts(filterPorts(portsData));
         }

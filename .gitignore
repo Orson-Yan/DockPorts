@@ -1,5 +1,7 @@
-# 运行时生成，含 secret_key 与密码哈希，请勿提交
+# 运行时生成，请勿提交（仅跟踪 config.json.example 作为模板）
 config/settings.json
+config/config.json
+config/hidden_ports.json
 
 # Python
 __pycache__/

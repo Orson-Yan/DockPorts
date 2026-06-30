@@ -33,12 +33,11 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 配置文件路径
-CONFIG_DIR = '/app/config'
+# 配置文件路径（容器内默认 /app/config，本地开发可用 DOCKPORTS_CONFIG_DIR 覆盖）
+CONFIG_DIR = os.environ.get('DOCKPORTS_CONFIG_DIR', '/app/config')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 HIDDEN_PORTS_FILE = os.path.join(CONFIG_DIR, 'hidden_ports.json')
 SETTINGS_FILE = os.path.join(CONFIG_DIR, 'settings.json')
-DEFAULT_CONFIG_FILE = '/app/config/config.json'
 
 def init_config():
     """初始化配置文件"""
@@ -276,16 +275,28 @@ def save_settings(new_settings):
         print(f"保存应用设置失败: {e}")
         return False
 
+# 内网 IP 检测缓存（IP 极少变动，避免每次请求都新建 socket）
+_intranet_ip_cache = {'ip': None, 'ts': 0}
+_INTRANET_IP_TTL = 60  # 秒
+
 def detect_intranet_ip():
-    """自动检测内网 IP（通过出站路由判断主网卡地址）"""
+    """自动检测内网 IP（通过出站路由判断主网卡地址），结果缓存 60 秒"""
+    now = time.time()
+    if _intranet_ip_cache['ip'] and (now - _intranet_ip_cache['ts']) < _INTRANET_IP_TTL:
+        return _intranet_ip_cache['ip']
+
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(('8.8.8.8', 80))
-        return s.getsockname()[0]
+        ip = s.getsockname()[0]
     except Exception:
-        return '127.0.0.1'
+        ip = '127.0.0.1'
     finally:
         s.close()
+
+    _intranet_ip_cache['ip'] = ip
+    _intranet_ip_cache['ts'] = now
+    return ip
 
 def get_effective_host():
     """获取用于端口跳转的有效内网地址（手动设置优先，否则自动检测）"""
@@ -305,17 +316,12 @@ class PortMonitor:
     
     def __init__(self):
         """初始化Docker客户端"""
-        try:
-            self.docker_client = docker.from_env()
-            logger.info("Docker客户端连接成功")
-        except Exception as e:
-            logger.error(f"Docker客户端连接失败: {e}")
-            self.docker_client = None
-        
         # 缓存相关属性
         self.container_cache = {}  # 容器信息缓存
         self.cache_timestamp = 0   # 缓存时间戳
         self.cache_ttl = 30        # 缓存生存时间（秒）
+
+        self.reconnect()
         
         # 默认端口服务映射
         self.default_ports = {
@@ -326,7 +332,19 @@ class PortMonitor:
             1521: "Oracle", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL", 5900: "VNC", 6379: "Redis",
             8080: "HTTP Proxy", 8443: "HTTPS Alt", 9200: "Elasticsearch", 27017: "MongoDB"
         }
-    
+
+    def reconnect(self):
+        """（重新）建立 Docker 客户端连接，并清空容器缓存"""
+        try:
+            self.docker_client = docker.from_env()
+            logger.info("Docker客户端连接成功")
+        except Exception as e:
+            logger.error(f"Docker客户端连接失败: {e}")
+            self.docker_client = None
+        # 重连后旧缓存失效
+        self.container_cache = {}
+        self.cache_timestamp = 0
+
     def get_docker_ports(self):
         """获取Docker容器端口映射信息"""
         ports_info = []
@@ -853,12 +871,20 @@ class PortMonitor:
             }
             port_cards.append(gap_card)
         
-        # 统计Docker容器数量
-        docker_container_names = sorted(set(
-            p.get('container', p.get('container_name', ''))
+        # 统计Docker容器数量：直接从 Docker API 取所有运行中容器，不依赖端口检测结果
+        all_running_names = []
+        if self.docker_client:
+            try:
+                all_running_names = sorted(c.name for c in self.docker_client.containers.list())
+            except Exception:
+                pass
+        # 回退：从 port_cards 补充（兼容 Docker 不可用时）
+        from_cards = set(
+            p.get('container') or p.get('container_name', '')
             for p in port_cards
-            if p.get('source') == 'docker' and p.get('container')
-        ))
+            if p.get('source') == 'docker' and (p.get('container') or p.get('container_name'))
+        )
+        docker_container_names = sorted((set(all_running_names) | from_cards) - {''})
         docker_container_count = len(docker_container_names)
         
         # 计算可用端口数量（基于指定的端口范围）
@@ -999,9 +1025,9 @@ def api_ports():
         # 处理搜索参数
         search = request.args.get('search', '').strip().lower()
         if search:
-            # 保存原始的总已使用端口数
-            original_total_used = port_data['total_used']
-            
+            # 保存原始的可用端口数（基于当前端口范围，搜索仅过滤展示，不改变实际可用数）
+            original_total_available = port_data['total_available']
+
             filtered_cards = []
             for card in port_data['port_cards']:
                 if card['type'] == 'used':
@@ -1068,8 +1094,8 @@ def api_ports():
             # 更新统计信息
             port_data['port_cards'] = filtered_cards
             port_data['total_used'] = filtered_used_count
-            # 搜索时，可用端口数量应该是总端口数减去所有已使用的端口数，而不是搜索结果数
-            port_data['total_available'] = max(0, 65535 - original_total_used)
+            # 搜索只过滤展示，可用端口数沿用过滤前基于端口范围的统计
+            port_data['total_available'] = original_total_available
         
         return jsonify({
             'success': True,
@@ -1309,8 +1335,8 @@ def api_save_settings():
 def api_refresh():
     """刷新端口信息API"""
     try:
-        # 重新初始化Docker客户端
-        port_monitor.__init__()
+        # 重新连接Docker客户端并清空缓存
+        port_monitor.reconnect()
         port_data = port_monitor.get_port_analysis()
         port_data['host_ip'] = get_effective_host()
         port_data['external_host'] = (settings.get('external_host') or '').strip()

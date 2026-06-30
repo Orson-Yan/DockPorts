@@ -114,114 +114,6 @@
             font-size: 1.1rem;
         }
 
-        /* 端口范围锁定样式 */
-        .port-range-lock {
-            margin-top: 2rem;
-            padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .port-range-lock h4 {
-            margin: 0 0 1rem 0;
-            color: #4a5568;
-            font-size: 1rem;
-        }
-
-        .range-inputs {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-        }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .input-group label {
-            font-size: 0.85rem;
-            color: #718096;
-            font-weight: 500;
-        }
-
-        .input-group input {
-            padding: 0.5rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            transition: border-color 0.2s;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .lock-controls {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .lock-btn, .reset-btn {
-            flex: 1;
-            padding: 0.5rem;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-
-        .lock-btn {
-            background: #667eea;
-            color: white;
-        }
-
-        .lock-btn:hover {
-            background: #5a67d8;
-        }
-
-        .lock-btn.locked {
-            background: #48bb78;
-        }
-
-        .lock-btn.locked:hover {
-            background: #38a169;
-        }
-
-        .reset-btn {
-            background: #e2e8f0;
-            color: #4a5568;
-        }
-
-        .reset-btn:hover {
-            background: #cbd5e0;
-        }
-        
-        .lock-btn.locked {
-            background-color: #dc3545;
-            border-color: #dc3545;
-            color: white;
-        }
-        
-        .lock-btn.locked:hover {
-            background-color: #c82333;
-            border-color: #bd2130;
-        }
-        
-        .input-group input:disabled {
-            background-color: #e9ecef;
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
         .container {
             flex: 1;
         }
@@ -539,11 +431,13 @@
 
         .modal-content {
             background-color: white;
-            margin: 5% auto;
+            margin: 5vh auto;
             padding: 2rem;
             border-radius: 12px;
             width: 90%;
             max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             position: relative;
         }
@@ -1363,37 +1257,6 @@
             white-space: nowrap;
         }
 
-        /* ===== 端口范围预设按钮 ===== */
-        .port-presets {
-            margin-top: 0.75rem;
-        }
-        .port-presets .presets-label {
-            font-size: 0.8rem;
-            color: #718096;
-            display: block;
-            margin-bottom: 0.4rem;
-        }
-        .preset-buttons {
-            display: flex;
-            gap: 0.3rem;
-            flex-wrap: wrap;
-        }
-        .preset-btn {
-            flex: 1;
-            padding: 0.3rem 0.4rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            background: #f7fafc;
-            color: #4a5568;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .preset-btn:hover {
-            background: #667eea;
-            color: white;
-            border-color: #5a67d8;
-        }
 
         /* ===== 按容器筛选 ===== */
         #containerFilterSection {
@@ -1406,8 +1269,6 @@
         }
         #containerFilterList {
             list-style: none;
-            max-height: 220px;
-            overflow-y: auto;
         }
         #containerFilterList .tab-link {
             font-size: 0.85rem;
@@ -1469,7 +1330,6 @@
         body.dark .sidebar h3,
         body.dark .sidebar h4,
         body.dark #containerFilterSection h4,
-        body.dark .port-range-lock h4,
         body.dark .modal-title,
         body.dark .config-section h3,
         body.dark .edit-modal h3 {
@@ -1477,9 +1337,7 @@
         }
         body.dark .stat-label,
         body.dark .tab-link,
-        body.dark .input-group label,
         body.dark .sort-control label,
-        body.dark .port-presets .presets-label,
         body.dark #dockerStatus,
         body.dark .conn-count,
         body.dark .image-name,
@@ -1490,12 +1348,10 @@
             background: #2d3748;
             color: #e2e8f0;
         }
-        body.dark .port-range-lock,
         body.dark .stat-item {
             background: #2d3748;
             border-color: #4a5568;
         }
-        body.dark .input-group input,
         body.dark .search-input,
         body.dark #configEditor,
         body.dark .toolbar-select,
@@ -1543,15 +1399,6 @@
         body.dark .target-btn.active {
             background: #4a5568;
             color: #e2e8f0;
-        }
-        body.dark .preset-btn {
-            background: #1a202c;
-            color: #a0aec0;
-            border-color: #4a5568;
-        }
-        body.dark .preset-btn:hover {
-            background: #667eea;
-            color: white;
         }
         body.dark .modal-header,
         body.dark .config-section,
@@ -1624,37 +1471,6 @@
                 </li>
             </ul>
             
-            <!-- 端口范围锁定功能 -->
-            <div class="port-range-lock">
-                <h4>🔒 端口范围锁定</h4>
-                <div class="range-inputs">
-                    <div class="input-group">
-                        <label for="startPort">起始端口:</label>
-                        <input type="number" id="startPort" placeholder="0" min="0" max="65535">
-                    </div>
-                    <div class="input-group">
-                        <label for="endPort">结束端口:</label>
-                        <input type="number" id="endPort" placeholder="65535" min="0" max="65535">
-                    </div>
-                </div>
-                <div class="lock-controls">
-                    <button id="lockRangeBtn" class="lock-btn" onclick="togglePortRangeLock()">
-                        🔓 锁定范围
-                    </button>
-                    <button id="resetRangeBtn" class="reset-btn" onclick="resetPortRange()">
-                        🔄 解锁
-                    </button>
-                </div>
-                <div class="port-presets">
-                    <span class="presets-label">快速预设范围:</span>
-                    <div class="preset-buttons">
-                        <button class="preset-btn" onclick="applyPreset(1, 1023)" title="知名端口 1-1023">知名</button>
-                        <button class="preset-btn" onclick="applyPreset(1024, 49151)" title="注册端口 1024-49151">注册</button>
-                        <button class="preset-btn" onclick="applyPreset(49152, 65535)" title="动态端口 49152-65535">动态</button>
-                    </div>
-                </div>
-            </div>
-
             <!-- 按容器筛选（动态生成） -->
             <div id="containerFilterSection" style="display: none;">
                 <h4>🐳 按容器筛选</h4>
@@ -1688,7 +1504,6 @@
                         <button id="exportBtn" class="settings-btn" onclick="exportCSV()" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">📥 导出</button>
                         <button id="darkModeBtn" class="settings-btn dark-mode-btn" onclick="toggleDarkMode()">🌙 深色</button>
                         <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
-                        <button id="appSettingsBtn" class="settings-btn" onclick="openAppSettings()" title="应用设置">🛠️ 应用</button>
                         <button id="logoutBtn" class="settings-btn" onclick="location.href='/logout'" style="display: none;" title="退出登录">🚪 退出</button>
                     </div>
                 </div>
@@ -1768,76 +1583,77 @@
         </div>
     </div>
 
-    <!-- 设置模态框 -->
+    <!-- 合并设置模态框 -->
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">系统设置</h2>
+                <h2 class="modal-title">设置</h2>
                 <span class="close" onclick="closeSettings()">&times;</span>
             </div>
-            
-            <div class="config-section">
-                <h3>配置文件编辑</h3>
-                <p style="color: #666; margin-bottom: 1rem; font-size: 0.9rem;">直接编辑 config.json 文件内容，支持中文服务名称</p>
-                
 
-                
-                <textarea id="configEditor" style="width: 100%; height: 300px; font-family: 'Courier New', monospace; font-size: 0.9rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 6px; resize: vertical;" placeholder="请输入有效的JSON配置..."></textarea>
-                <div id="configError" style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.5rem; display: none;"></div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
-                <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 应用设置模态框（内网地址 + 登录鉴权） -->
-    <div id="appSettingsModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">应用设置</h2>
-                <span class="close" onclick="closeAppSettings()">&times;</span>
+            <!-- 标签页切换 -->
+            <div style="display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 1.2rem;">
+                <button id="tabBtnConfig" onclick="switchSettingsTab('config')"
+                    style="padding: 0.6rem 1.2rem; border: none; background: none; cursor: pointer; font-size: 0.95rem; font-weight: 600; color: #667eea; border-bottom: 2px solid #667eea; margin-bottom: -2px;">
+                    📝 端口配置
+                </button>
+                <button id="tabBtnApp" onclick="switchSettingsTab('app')"
+                    style="padding: 0.6rem 1.2rem; border: none; background: none; cursor: pointer; font-size: 0.95rem; font-weight: 600; color: #a0aec0; border-bottom: 2px solid transparent; margin-bottom: -2px;">
+                    🛠️ 应用设置
+                </button>
             </div>
 
-            <div class="config-section">
-                <h3>内网地址</h3>
-                <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">用于端口卡片点击跳转。留空则自动检测当前内网 IP。</p>
-                <input type="text" id="intranetHost" placeholder="例如 192.168.1.10（留空自动检测）"
-                       style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
-                <p id="detectedIpHint" style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.4rem;"></p>
+            <!-- 端口配置 tab -->
+            <div id="tabPanelConfig">
+                <div class="config-section">
+                    <h3>配置文件编辑</h3>
+                    <p style="color: #666; margin-bottom: 1rem; font-size: 0.9rem;">直接编辑 config.json 文件内容，支持中文服务名称</p>
+                    <textarea id="configEditor" style="width: 100%; height: 300px; font-family: 'Courier New', monospace; font-size: 0.9rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 6px; resize: vertical;" placeholder="请输入有效的JSON配置..."></textarea>
+                    <div id="configError" style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.5rem; display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
+                    <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+                </div>
             </div>
 
-            <div class="config-section">
-                <h3>外网地址</h3>
-                <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">公网域名或 IP（不含 http://）。设置后可在主界面切换「外网」跳转目标。</p>
-                <input type="text" id="externalHost" placeholder="例如 nas.example.com 或 公网IP（留空则禁用外网跳转）"
-                       style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
-            </div>
-
-            <div class="config-section">
-                <h3>登录鉴权</h3>
-                <p style="color: #666; margin-bottom: 0.8rem; font-size: 0.9rem;">开启后访问需登录。首次开启请先设置密码。</p>
-                <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; cursor: pointer;">
-                    <input type="checkbox" id="authEnabled"> <span>启用登录保护</span>
-                </label>
-                <div style="margin-bottom: 0.9rem;">
-                    <label style="display: block; font-size: 0.85rem; color: #4a5568; margin-bottom: 0.3rem;">用户名</label>
-                    <input type="text" id="authUsername" autocomplete="username"
+            <!-- 应用设置 tab -->
+            <div id="tabPanelApp" style="display: none;">
+                <div class="config-section">
+                    <h3>内网地址</h3>
+                    <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">用于端口卡片点击跳转。留空则自动检测当前内网 IP。</p>
+                    <input type="text" id="intranetHost" placeholder="例如 192.168.1.10（留空自动检测）"
+                           style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                    <p id="detectedIpHint" style="color: #a0aec0; font-size: 0.8rem; margin-top: 0.4rem;"></p>
+                </div>
+                <div class="config-section">
+                    <h3>外网地址</h3>
+                    <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">公网域名或 IP（不含 http://）。设置后可在主界面切换「外网」跳转目标。</p>
+                    <input type="text" id="externalHost" placeholder="例如 nas.example.com 或 公网IP（留空则禁用外网跳转）"
                            style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
                 </div>
-                <div>
-                    <label style="display: block; font-size: 0.85rem; color: #4a5568; margin-bottom: 0.3rem;">新密码 <span id="pwdHint" style="color: #a0aec0;"></span></label>
-                    <input type="password" id="authPassword" autocomplete="new-password" placeholder="留空则不修改密码"
-                           style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                <div class="config-section">
+                    <h3>登录鉴权</h3>
+                    <p style="color: #666; margin-bottom: 0.8rem; font-size: 0.9rem;">开启后访问需登录。首次开启请先设置密码。</p>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; cursor: pointer;">
+                        <input type="checkbox" id="authEnabled"> <span>启用登录保护</span>
+                    </label>
+                    <div style="margin-bottom: 0.9rem;">
+                        <label style="display: block; font-size: 0.85rem; color: #4a5568; margin-bottom: 0.3rem;">用户名</label>
+                        <input type="text" id="authUsername" autocomplete="username"
+                               style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; color: #4a5568; margin-bottom: 0.3rem;">新密码 <span id="pwdHint" style="color: #a0aec0;"></span></label>
+                        <input type="password" id="authPassword" autocomplete="new-password" placeholder="留空则不修改密码"
+                               style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                    </div>
+                    <div id="appSettingsError" style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.6rem; display: none;"></div>
                 </div>
-                <div id="appSettingsError" style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.6rem; display: none;"></div>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeAppSettings()">取消</button>
-                <button class="btn btn-primary" onclick="saveAppSettings()">保存设置</button>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
+                    <button class="btn btn-primary" onclick="saveAppSettings()">保存</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1860,11 +1676,6 @@
         let autoRefreshTimer = null; // 自动刷新计时器
         let autoRefreshSeconds = 0; // 自动刷新间隔（秒）
         let autoRefreshRemaining = 0; // 倒计时剩余
-        
-        // 端口范围锁定相关变量
-        let isPortRangeLocked = false;
-        let lockedStartPort = 0;
-        let lockedEndPort = 65535;
         
         /**
          * 检查端口是否被隐藏
@@ -1953,37 +1764,6 @@
                 searchInput.focus();
             });
             
-            // 端口范围锁定功能
-            const lockRangeBtn = document.getElementById('lockRangeBtn');
-            const resetRangeBtn = document.getElementById('resetRangeBtn');
-            
-            if (lockRangeBtn) {
-                lockRangeBtn.addEventListener('click', togglePortRangeLock);
-            }
-            
-            if (resetRangeBtn) {
-                resetRangeBtn.addEventListener('click', resetPortRange);
-            }
-            
-            // 端口输入框回车键监听
-            const startPortInput = document.getElementById('startPort');
-            const endPortInput = document.getElementById('endPort');
-            
-            if (startPortInput) {
-                startPortInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        togglePortRangeLock();
-                    }
-                });
-            }
-            
-            if (endPortInput) {
-                endPortInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        togglePortRangeLock();
-                    }
-                });
-            }
         }
 
         // 切换标签页
@@ -2067,114 +1847,6 @@
             }
         }
 
-        /**
-         * 切换端口范围锁定状态
-         */
-        function togglePortRangeLock() {
-            const startPortInput = document.getElementById('startPort');
-            const endPortInput = document.getElementById('endPort');
-            const lockBtn = document.getElementById('lockRangeBtn');
-            
-            if (!isPortRangeLocked) {
-                // 获取输入的端口范围
-                const startPort = parseInt(startPortInput.value) || 0;
-                const endPort = parseInt(endPortInput.value) || 65535;
-                
-                // 验证端口范围
-                if (startPort < 0 || startPort > 65535 || endPort < 0 || endPort > 65535) {
-                    alert('端口范围必须在 0-65535 之间');
-                    return;
-                }
-                
-                if (startPort > endPort) {
-                    alert('起始端口不能大于结束端口');
-                    return;
-                }
-                
-                // 锁定范围
-                isPortRangeLocked = true;
-                lockedStartPort = startPort;
-                lockedEndPort = endPort;
-                
-                // 更新按钮状态
-                lockBtn.textContent = '🔒 解锁范围';
-                lockBtn.classList.add('locked');
-                
-                // 禁用输入框
-                startPortInput.disabled = true;
-                endPortInput.disabled = true;
-                
-                console.log(`端口范围已锁定: ${lockedStartPort}-${lockedEndPort}`);
-            } else {
-                // 解锁范围
-                isPortRangeLocked = false;
-                
-                // 更新按钮状态
-                lockBtn.textContent = '🔓 锁定范围';
-                lockBtn.classList.remove('locked');
-                
-                // 启用输入框
-                startPortInput.disabled = false;
-                endPortInput.disabled = false;
-                
-                console.log('端口范围已解锁');
-            }
-            
-            // 重新加载端口数据
-            loadPorts();
-        }
-        
-        /**
-         * 重置端口范围
-         */
-        function resetPortRange() {
-            const startPortInput = document.getElementById('startPort');
-            const endPortInput = document.getElementById('endPort');
-            const lockBtn = document.getElementById('lockRangeBtn');
-            
-            // 重置输入框
-            startPortInput.value = '';
-            endPortInput.value = '';
-            
-            // 如果当前是锁定状态，先解锁
-            if (isPortRangeLocked) {
-                isPortRangeLocked = false;
-                lockBtn.textContent = '🔓 锁定范围';
-                lockBtn.classList.remove('locked');
-                startPortInput.disabled = false;
-                endPortInput.disabled = false;
-            }
-            
-            // 重置范围变量
-            lockedStartPort = 0;
-            lockedEndPort = 65535;
-            
-            console.log('端口范围已重置');
-            
-            // 重新加载端口数据
-            loadPorts();
-        }
-        
-        /**
-         * 检查端口是否在锁定范围内
-         * @param {Object} card - 端口卡片对象
-         * @returns {boolean} - 是否在范围内
-         */
-        function isPortInRange(card) {
-            if (!isPortRangeLocked) {
-                return true; // 未锁定时显示所有端口
-            }
-            
-            if (card.type === 'used') {
-                return card.port >= lockedStartPort && card.port <= lockedEndPort;
-            } else if (card.type === 'gap' || card.type === 'unknown_range') {
-                // 对于范围类型，检查是否有重叠
-                return !(card.end_port < lockedStartPort || card.start_port > lockedEndPort);
-            }
-            
-            return false;
-        }
-
         // 过滤端口数据
         function filterPorts(data) {
             if (!data.port_cards) return data;
@@ -2182,9 +1854,6 @@
             let filteredCards = data.port_cards.filter(card => {
                 // 首先检查是否为隐藏端口
                 const isHidden = isPortHidden(card);
-
-                // 检查是否在端口范围锁定内
-                const inRange = isPortInRange(card);
 
                 // 按容器筛选（选中某容器时，仅显示该容器的端口）
                 if (currentContainerFilter !== null) {
@@ -2194,17 +1863,17 @@
 
                 switch (currentFilter) {
                     case 'all':
-                        return !isHidden && inRange; // 显示所有非隐藏且在范围内的端口
+                        return !isHidden;
                     case 'system':
-                        return !isHidden && inRange && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'system';
+                        return !isHidden && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'system';
                     case 'container':
-                        return !isHidden && inRange && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'docker';
+                        return !isHidden && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'docker';
                     case 'unused':
-                        return !isHidden && inRange && card.type === 'gap';
+                        return !isHidden && card.type === 'gap';
                     case 'hidden':
-                        return isHidden && inRange; // 只显示隐藏且在范围内的端口
+                        return isHidden;
                     default:
-                        return !isHidden && inRange;
+                        return !isHidden;
                 }
             });
             
@@ -2336,12 +2005,6 @@
                     params.append('protocol', currentProtocol.toUpperCase());
                 }
                 
-                // 添加端口范围参数
-                if (isPortRangeLocked && lockedStartPort && lockedEndPort) {
-                    params.append('start_port', lockedStartPort.toString());
-                    params.append('end_port', lockedEndPort.toString());
-                }
-                
                 if (params.toString()) {
                     url += '?' + params.toString();
                 }
@@ -2393,12 +2056,6 @@
                 
                 if (currentProtocol !== 'all') {
                     params.append('protocol', currentProtocol.toUpperCase());
-                }
-                
-                // 添加端口范围参数
-                if (isPortRangeLocked && lockedStartPort && lockedEndPort) {
-                    params.append('start_port', lockedStartPort.toString());
-                    params.append('end_port', lockedEndPort.toString());
                 }
                 
                 if (params.toString()) {
@@ -2834,10 +2491,6 @@
                 let apiUrl = '/api/ports';
                 const params = new URLSearchParams();
                 if (currentProtocol !== 'all') params.append('protocol', currentProtocol.toUpperCase());
-                if (isPortRangeLocked && lockedStartPort && lockedEndPort) {
-                    params.append('start_port', lockedStartPort.toString());
-                    params.append('end_port', lockedEndPort.toString());
-                }
                 if (params.toString()) apiUrl += '?' + params.toString();
                 const response = await fetch(apiUrl);
                 const result = await response.json();
@@ -2850,26 +2503,6 @@
             } catch (e) {
                 // 静默忽略
             }
-        }
-
-        /**
-         * 应用端口范围预设
-         */
-        function applyPreset(start, end) {
-            const startInput = document.getElementById('startPort');
-            const endInput = document.getElementById('endPort');
-            const lockBtn = document.getElementById('lockRangeBtn');
-            // 先解锁（如已锁定）以便重新填值
-            if (isPortRangeLocked) {
-                isPortRangeLocked = false;
-                lockBtn.textContent = '🔓 锁定范围';
-                lockBtn.classList.remove('locked');
-                startInput.disabled = false;
-                endInput.disabled = false;
-            }
-            startInput.value = start;
-            endInput.value = end;
-            togglePortRangeLock(); // 锁定并加载
         }
 
         /**
@@ -3072,72 +2705,63 @@
         let currentConfig = null;
 
         /**
-         * 打开设置模态框
+         * 切换设置弹窗内的标签页
          */
-        async function openSettings() {
-            try {
-                // 获取原始配置文件内容（未经处理的格式）
-                const response = await fetch('/api/config/raw');
-                const rawConfig = await response.json();
-                currentConfig = rawConfig;
-                
-                // 将原始配置转换为格式化的JSON字符串
-                const configEditor = document.getElementById('configEditor');
-                configEditor.value = JSON.stringify(rawConfig, null, 2);
-                
-                // 清除错误信息
-                document.getElementById('configError').style.display = 'none';
-                
-                // 显示模态框
-                document.getElementById('settingsModal').style.display = 'block';
-            } catch (error) {
-                console.error('加载配置失败:', error);
-                alert('加载配置失败，请稍后重试');
-            }
+        function switchSettingsTab(tab) {
+            const isConfig = tab === 'config';
+            document.getElementById('tabPanelConfig').style.display = isConfig ? '' : 'none';
+            document.getElementById('tabPanelApp').style.display = isConfig ? 'none' : '';
+            const btnConfig = document.getElementById('tabBtnConfig');
+            const btnApp = document.getElementById('tabBtnApp');
+            btnConfig.style.color = isConfig ? '#667eea' : '#a0aec0';
+            btnConfig.style.borderBottomColor = isConfig ? '#667eea' : 'transparent';
+            btnApp.style.color = isConfig ? '#a0aec0' : '#667eea';
+            btnApp.style.borderBottomColor = isConfig ? 'transparent' : '#667eea';
         }
 
         /**
-         * 关闭设置模态框
+         * 打开设置弹窗（同时加载两个 tab 的数据）
          */
+        async function openSettings() {
+            try {
+                const [configRes, appRes] = await Promise.all([
+                    fetch('/api/config/raw'),
+                    fetch('/api/settings')
+                ]);
+                const rawConfig = await configRes.json();
+                currentConfig = rawConfig;
+                document.getElementById('configEditor').value = JSON.stringify(rawConfig, null, 2);
+                document.getElementById('configError').style.display = 'none';
+
+                const appResult = await appRes.json();
+                if (appResult.success) {
+                    const d = appResult.data;
+                    document.getElementById('intranetHost').value = d.intranet_host || '';
+                    document.getElementById('externalHost').value = d.external_host || '';
+                    document.getElementById('detectedIpHint').textContent =
+                        '当前自动检测到的内网 IP：' + (d.detected_ip || '未知');
+                    document.getElementById('authEnabled').checked = !!d.auth.enabled;
+                    document.getElementById('authUsername').value = d.auth.username || 'admin';
+                    document.getElementById('authPassword').value = '';
+                    document.getElementById('pwdHint').textContent =
+                        d.auth.has_password ? '（已设置，留空则不修改）' : '（尚未设置，启用登录前必须设置）';
+                    document.getElementById('appSettingsError').style.display = 'none';
+                }
+
+                switchSettingsTab('config');
+                document.getElementById('settingsModal').style.display = 'block';
+            } catch (error) {
+                console.error('加载设置失败:', error);
+                alert('加载设置失败，请稍后重试');
+            }
+        }
+
         function closeSettings() {
             document.getElementById('settingsModal').style.display = 'none';
         }
 
         /**
-         * 打开应用设置（内网地址 + 鉴权）
-         */
-        async function openAppSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const result = await response.json();
-                if (!result.success) {
-                    alert('加载应用设置失败: ' + (result.error || '未知错误'));
-                    return;
-                }
-                const d = result.data;
-                document.getElementById('intranetHost').value = d.intranet_host || '';
-                document.getElementById('externalHost').value = d.external_host || '';
-                document.getElementById('detectedIpHint').textContent =
-                    '当前自动检测到的内网 IP：' + (d.detected_ip || '未知');
-                document.getElementById('authEnabled').checked = !!d.auth.enabled;
-                document.getElementById('authUsername').value = d.auth.username || 'admin';
-                document.getElementById('authPassword').value = '';
-                document.getElementById('pwdHint').textContent =
-                    d.auth.has_password ? '（已设置，留空则不修改）' : '（尚未设置，启用登录前必须设置）';
-                document.getElementById('appSettingsError').style.display = 'none';
-                document.getElementById('appSettingsModal').style.display = 'block';
-            } catch (error) {
-                console.error('加载应用设置失败:', error);
-                alert('加载应用设置失败，请稍后重试');
-            }
-        }
-
-        function closeAppSettings() {
-            document.getElementById('appSettingsModal').style.display = 'none';
-        }
-
-        /**
-         * 保存应用设置
+         * 保存应用设置（应用设置 tab）
          */
         async function saveAppSettings() {
             const errEl = document.getElementById('appSettingsError');
@@ -3161,7 +2785,7 @@
                 const result = await response.json();
                 if (result.success) {
                     alert('应用设置已保存！');
-                    closeAppSettings();
+                    closeSettings();
                     updateLogoutButton();
                     loadPorts();
                 } else {
@@ -3324,10 +2948,6 @@
             const modal = document.getElementById('settingsModal');
             if (event.target === modal) {
                 closeSettings();
-            }
-            const appModal = document.getElementById('appSettingsModal');
-            if (event.target === appModal) {
-                closeAppSettings();
             }
         }
 

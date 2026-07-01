@@ -106,6 +106,7 @@ docker run -d \
 | `DOCKPORTS_PORT` | `7577` | Web 界面端口 |
 | `DOCKPORTS_HOST` | `0.0.0.0` | Web 服务监听地址 |
 | `DOCKPORTS_DEBUG` | `false` | 启用调试模式（`true` / `1` / `yes`） |
+| `DOCKPORTS_COOKIE_SECURE` | `false` | 仅经 HTTPS 传输 session cookie，套 TLS 反代时设为 `true` |
 
 **配置优先级：** 命令行参数 > 环境变量 > 默认值
 
@@ -214,6 +215,12 @@ docker logs -f dockports
 ---
 
 ## 📝 更新日志
+
+### v0.3.4
+- 🔒 **鉴权加固**（开启登录保护后生效）：
+  - 登录失败限流：同一 IP 5 次/5 分钟失败后锁定 5 分钟，防暴力破解
+  - `settings.json` 收紧为 `0600` 权限（含 `secret_key` 与密码哈希），并在启动时修正历史文件
+  - session cookie 增加 `SameSite=Lax` 与显式 `HttpOnly`；新增 `DOCKPORTS_COOKIE_SECURE` 环境变量（套 TLS 反代时开启 `Secure`）
 
 ### v0.3.3
 - 🐳 「按容器筛选」与「端口分类」联动优化：选中某个容器时端口分类自动重置为「全部」，避免停在「系统/容器」分类上看不到该容器的端口（与反向联动对称）

@@ -53,8 +53,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config:/app/config
     environment:
-      - DOCKPORTS_PORT=7577
+      - DOCKPORTS_PORT=7577  # 可修改此端口以避免冲突
     restart: unless-stopped
+    # —— 可选：在「宿主机」端口卡片上显示占用进程名（如 mihomo / ollama / xrdp）——
+    # 默认关闭。容器与宿主机的 PID 命名空间隔离，且需提权才能映射 socket->进程。
+    # 解开下面两行即可启用。⚠ 安全提示：privileged 容器近似拥有宿主机 root 权限，
+    # 攻击面明显增大，请仅在可信内网/自用环境开启。
+    # pid: host
+    # privileged: true
 ```
 
 启动：

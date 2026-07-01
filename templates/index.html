@@ -1372,6 +1372,17 @@
             white-space: nowrap;
             font-weight: 500;
         }
+        .alive-badge {
+            font-size: 0.68rem;
+            padding: 0.05rem 0.35rem;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        .alive-badge.alive-up   { background: #c6f6d5; color: #2f855a; }
+        .alive-badge.alive-down { background: #fed7d7; color: #c53030; }
+        body.dark .alive-badge.alive-up   { background: #22543d; color: #9ae6b4; }
+        body.dark .alive-badge.alive-down { background: #742a2a; color: #feb2b2; }
         .exp-badge.exp-public { background: #fed7d7; color: #c53030; }
         .exp-badge.exp-lan    { background: #feebc8; color: #b7791f; }
         .exp-badge.exp-local  { background: #c6f6d5; color: #2f855a; }
@@ -1739,6 +1750,13 @@
                     <p style="color: #666; margin-bottom: 0.6rem; font-size: 0.9rem;">公网域名或 IP（不含 http://）。设置后可在主界面切换「外网」跳转目标。</p>
                     <input type="text" id="externalHost" placeholder="例如 nas.example.com 或 公网IP（留空则禁用外网跳转）"
                            style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                </div>
+                <div class="config-section">
+                    <h3>端口探活</h3>
+                    <p style="color: #666; margin-bottom: 0.8rem; font-size: 0.9rem;">开启后对 TCP 端口做连接探测，卡片显示「🟢 通 / 🔴 不通」。结果缓存约 15 秒。</p>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="healthCheckEnabled"> <span>启用端口探活（TCP 连接检测）</span>
+                    </label>
                 </div>
                 <div class="config-section">
                     <h3>登录鉴权</h3>
@@ -2263,6 +2281,16 @@
         }
 
         /**
+         * 渲染探活状态徽章（端口探活开启时后端才返回 alive 字段）
+         */
+        function renderAliveBadge(card) {
+            if (card.alive === undefined || card.alive === null) return '';
+            return card.alive
+                ? '<span class="alive-badge alive-up" title="TCP 连接成功">🟢 通</span>'
+                : '<span class="alive-badge alive-down" title="TCP 连接失败">🔴 不通</span>';
+        }
+
+        /**
          * 构建端口跳转链接（内网/外网地址 + 端口）
          * 加密端口(443/8443/9443)用 https，其余 http
          * 选择外网但未配置外网地址时，回退到内网地址
@@ -2420,6 +2448,7 @@
                         ${card.reserved_by && card.reserved_by.length ? `<div class="pc-warn" title="以下已停止容器也声明了此端口，启动会撞端口">⚠ 停止容器也声明: ${card.reserved_by.join(', ')}</div>` : ''}
                         <div class="port-card-footer">
                             <div class="pc-tags">
+                                ${renderAliveBadge(card)}
                                 ${renderExposureBadge(card)}
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                                 ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
@@ -2457,6 +2486,7 @@
                                  </div>
                              </div>
                              <div style="display: flex; gap: 0.5rem; align-items: center; height: 24px;">
+                                 ${renderAliveBadge(card)}
                                  ${renderExposureBadge(card)}
                                  ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
                                  ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
@@ -2566,6 +2596,7 @@
                         </div>
                         <div class="port-card-footer">
                             <div class="pc-tags">
+                                ${renderAliveBadge(card)}
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                             </div>
                             <div class="port-card-actions">
@@ -2853,7 +2884,7 @@
                 showMessage('没有可导出的数据', 'error');
                 return;
             }
-            const rows = [['类型', '端口', '来源', '协议', '暴露面', '服务名称', '容器', '镜像', '占用进程', '连接数']];
+            const rows = [['类型', '端口', '来源', '协议', '暴露面', '探活', '服务名称', '容器', '镜像', '占用进程', '连接数']];
             sortCards(filtered.port_cards).forEach(card => {
                 let portStr = '';
                 let typeStr = '已用';
@@ -2875,6 +2906,7 @@
                     card.source || '-',
                     (card.protocol || '-'),
                     (expMap[card.exposure] || '-'),
+                    (card.alive === true ? '通' : card.alive === false ? '不通' : '-'),
                     (card.service_name || '').replace(/"/g, '""'),
                     (card.container || '').replace(/"/g, '""'),
                     (card.image || '').replace(/"/g, '""'),
@@ -2991,6 +3023,7 @@
                     document.getElementById('externalHost').value = d.external_host || '';
                     document.getElementById('detectedIpHint').textContent =
                         '当前自动检测到的内网 IP：' + (d.detected_ip || '未知');
+                    document.getElementById('healthCheckEnabled').checked = !!d.health_check;
                     document.getElementById('authEnabled').checked = !!d.auth.enabled;
                     document.getElementById('authUsername').value = d.auth.username || 'admin';
                     document.getElementById('authPassword').value = '';
@@ -3021,6 +3054,7 @@
             const payload = {
                 intranet_host: document.getElementById('intranetHost').value.trim(),
                 external_host: document.getElementById('externalHost').value.trim(),
+                health_check: document.getElementById('healthCheckEnabled').checked,
                 enabled: document.getElementById('authEnabled').checked,
                 username: document.getElementById('authUsername').value.trim()
             };

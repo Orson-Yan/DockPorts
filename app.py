@@ -22,6 +22,7 @@ import os
 import socket
 import time
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 import argparse
 
 # 配置日志
@@ -211,6 +212,7 @@ def default_settings():
             'username': 'admin',
             'password_hash': ''
         },
+        'health_check': False,
         'secret_key': secrets.token_hex(32)
     }
 
@@ -255,6 +257,9 @@ def init_settings():
             if k not in data['auth']:
                 data['auth'][k] = v
                 changed = True
+    if 'health_check' not in data:
+        data['health_check'] = base['health_check']
+        changed = True
     if not data.get('secret_key'):
         data['secret_key'] = base['secret_key']
         changed = True
@@ -366,6 +371,10 @@ class PortMonitor:
         # 已停止容器「声明端口」缓存（端口预留功能用）
         self.stopped_cache = {}
         self.stopped_cache_ts = 0
+
+        # 端口探活结果缓存：port -> (alive: bool, ts)
+        self.probe_cache = {}
+        self.probe_ttl = 15  # 秒
 
         self.reconnect()
         
@@ -826,7 +835,52 @@ class PortMonitor:
             'status': first.get('status', '')
         }
 
-    def get_port_analysis(self, start_port=1, end_port=65535, protocol_filter=None, include_reserved=False):
+    @staticmethod
+    def _probe_tcp(target, timeout=0.4):
+        """TCP 连接探测：target=(port, [候选地址])，任一地址连上即返回 True"""
+        port, addrs = target
+        for addr in addrs:
+            try:
+                with socket.create_connection((addr, port), timeout=timeout):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    @staticmethod
+    def _probe_addrs(bind_ips):
+        """根据端口绑定 IP 推导探测候选地址：
+        通配(0.0.0.0/::)→回环；具体 IP→原样（host 网络下可直连）；总是兜底 127.0.0.1"""
+        out = []
+        for ip in (bind_ips or []):
+            if ip == '0.0.0.0':
+                out.append('127.0.0.1')
+            elif ip == '::':
+                out.append('::1')
+            else:
+                out.append(ip)
+        out.append('127.0.0.1')
+        seen, res = set(), []
+        for a in out:
+            if a not in seen:
+                seen.add(a)
+                res.append(a)
+        return res
+
+    def get_liveness(self, port_targets):
+        """并发探测端口存活，带 15 秒缓存。port_targets={port: [候选地址]}，返回 {port: bool}"""
+        now = time.time()
+        todo = [p for p in port_targets
+                if now - self.probe_cache.get(p, (None, 0))[1] >= self.probe_ttl]
+        if todo:
+            with ThreadPoolExecutor(max_workers=min(64, len(todo))) as ex:
+                results = ex.map(self._probe_tcp, [(p, port_targets[p]) for p in todo])
+                for p, alive in zip(todo, results):
+                    self.probe_cache[p] = (alive, now)
+        return {p: self.probe_cache.get(p, (None, 0))[0] for p in port_targets}
+
+    def get_port_analysis(self, start_port=1, end_port=65535, protocol_filter=None,
+                          include_reserved=False, probe=False):
         """分析端口使用情况并生成可视化数据"""
         docker_ports = self.get_docker_ports()
         host_ports_info = self.get_host_ports()
@@ -1196,6 +1250,18 @@ class PortMonitor:
         # Docker 不可用时回退为有端口的容器数。
         docker_container_count = len(all_running_names) if all_running_names else len(filter_container_names)
 
+        # 主动探活（TCP 连接检测）：仅对 used/reserved 的 TCP 端口探测
+        if probe:
+            port_targets = {}
+            for c in port_cards:
+                if c.get('type') in ('used', 'reserved') and c.get('port') \
+                        and 'TCP' in (c.get('protocol') or 'TCP').upper():
+                    port_targets[c['port']] = self._probe_addrs(bind_ips_map.get(c['port']))
+            liveness = self.get_liveness(port_targets)
+            for c in port_cards:
+                if c.get('type') in ('used', 'reserved') and c.get('port') in liveness:
+                    c['alive'] = liveness[c['port']]
+
         return {
             'port_cards': port_cards,
             'total_used': len(filtered_ports),
@@ -1335,10 +1401,13 @@ def api_ports():
         
         # 是否包含「已停止容器声明的预留端口」
         include_reserved = request.args.get('reserved', '').strip().lower() in ('1', 'true', 'yes', 'on')
+        # 主动探活由设置开关控制
+        probe = bool(settings.get('health_check'))
 
         port_data = port_monitor.get_port_analysis(start_port=start_port, end_port=end_port,
                                                    protocol_filter=protocol_filter,
-                                                   include_reserved=include_reserved)
+                                                   include_reserved=include_reserved,
+                                                   probe=probe)
 
         # 提供内网/外网地址，供前端拼接端口跳转链接
         port_data['host_ip'] = get_effective_host()
@@ -1608,6 +1677,7 @@ def api_get_settings():
                 'intranet_host': settings.get('intranet_host', ''),
                 'external_host': settings.get('external_host', ''),
                 'detected_ip': detect_intranet_ip(),
+                'health_check': bool(settings.get('health_check')),
                 'auth': {
                     'enabled': bool(auth.get('enabled')),
                     'username': auth.get('username', 'admin'),
@@ -1637,6 +1707,10 @@ def api_save_settings():
         # 外网地址
         if 'external_host' in data:
             new_settings['external_host'] = (data.get('external_host') or '').strip()
+
+        # 端口探活开关
+        if 'health_check' in data:
+            new_settings['health_check'] = bool(data.get('health_check'))
 
         # 鉴权相关
         auth = new_settings.setdefault('auth', {})
@@ -1676,7 +1750,8 @@ def api_refresh():
         # 重新连接Docker客户端并清空缓存
         port_monitor.reconnect()
         include_reserved = request.args.get('reserved', '').strip().lower() in ('1', 'true', 'yes', 'on')
-        port_data = port_monitor.get_port_analysis(include_reserved=include_reserved)
+        port_data = port_monitor.get_port_analysis(include_reserved=include_reserved,
+                                                   probe=bool(settings.get('health_check')))
         port_data['host_ip'] = get_effective_host()
         port_data['external_host'] = (settings.get('external_host') or '').strip()
         port_data['server_time'] = datetime.now().strftime('%H:%M:%S')

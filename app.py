@@ -214,6 +214,13 @@ def default_settings():
         'secret_key': secrets.token_hex(32)
     }
 
+def _secure_settings_perms():
+    """将 settings.json 权限收紧为 0600（含 secret_key 与密码哈希，避免本地其他用户读取）"""
+    try:
+        os.chmod(SETTINGS_FILE, 0o600)
+    except Exception as e:
+        logger.debug(f"设置 settings.json 权限失败（可忽略）: {e}")
+
 def init_settings():
     """初始化应用设置文件，缺字段时补全"""
     os.makedirs(CONFIG_DIR, exist_ok=True)
@@ -221,6 +228,7 @@ def init_settings():
     if not os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
             json.dump(default_settings(), f, indent=2, ensure_ascii=False)
+        _secure_settings_perms()
         print(f"应用设置文件已创建: {SETTINGS_FILE}")
         return
 
@@ -256,6 +264,9 @@ def init_settings():
             json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"应用设置文件已更新: {SETTINGS_FILE}")
 
+    # 每次启动都收紧权限（修正历史上以 644 创建的文件）
+    _secure_settings_perms()
+
 def load_settings():
     """加载应用设置"""
     try:
@@ -270,6 +281,7 @@ def save_settings(new_settings):
     try:
         with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
             json.dump(new_settings, f, indent=2, ensure_ascii=False)
+        _secure_settings_perms()
         return True
     except Exception as e:
         print(f"保存应用设置失败: {e}")
@@ -310,6 +322,16 @@ settings = load_settings()
 
 # 设置 Flask session 密钥（持久化于 settings.json，重启后 session 不失效）
 app.secret_key = settings.get('secret_key') or secrets.token_hex(32)
+
+# session cookie 安全标志：
+# - HttpOnly：JS 读不到（缓解 XSS 窃取）
+# - SameSite=Lax：缓解跨站请求伪造
+# - Secure：仅经 HTTPS 传输，套 TLS 反代时用 DOCKPORTS_COOKIE_SECURE=true 开启
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('DOCKPORTS_COOKIE_SECURE', '').lower() in ('true', '1', 'yes'),
+)
 
 class PortMonitor:
     """端口监控类"""
@@ -1138,6 +1160,40 @@ class PortMonitor:
 # 创建端口监控实例
 port_monitor = PortMonitor()
 
+# ===== 登录失败限流（内存，按客户端 IP）=====
+# 用 remote_addr（TCP 源，不可轻易伪造）作为 key；不信任 X-Forwarded-For，
+# 否则攻击者伪造该头即可绕过限流。套反代时限流粒度为「每反代 IP」。
+_login_attempts = {}          # ip -> {'count': int, 'first': ts, 'locked_until': ts}
+LOGIN_MAX_ATTEMPTS = 5        # 窗口内最多失败次数
+LOGIN_WINDOW = 300           # 计数窗口（秒）
+LOGIN_LOCKOUT = 300          # 触发后锁定时长（秒）
+
+def _login_locked_remaining(ip):
+    """返回该 IP 剩余锁定秒数，未锁定返回 0"""
+    rec = _login_attempts.get(ip)
+    if not rec:
+        return 0
+    remaining = int(rec.get('locked_until', 0) - time.time())
+    return remaining if remaining > 0 else 0
+
+def _record_login_fail(ip):
+    now = time.time()
+    rec = _login_attempts.get(ip)
+    if not rec or (now - rec.get('first', now)) > LOGIN_WINDOW:
+        rec = {'count': 0, 'first': now, 'locked_until': 0}
+    rec['count'] += 1
+    if rec['count'] >= LOGIN_MAX_ATTEMPTS:
+        rec['locked_until'] = now + LOGIN_LOCKOUT
+    _login_attempts[ip] = rec
+    # 轻量清理，防止字典无限增长
+    if len(_login_attempts) > 1024:
+        for k in [k for k, v in _login_attempts.items()
+                  if v.get('locked_until', 0) < now and (now - v.get('first', now)) > LOGIN_WINDOW]:
+            _login_attempts.pop(k, None)
+
+def _reset_login_attempts(ip):
+    _login_attempts.pop(ip, None)
+
 @app.before_request
 def require_login():
     """登录守卫：开启鉴权且未登录时，HTML 跳转登录页，API 返回 401"""
@@ -1160,13 +1216,23 @@ def login():
         return redirect('/')
 
     if request.method == 'POST':
+        ip = request.remote_addr or 'unknown'
+        locked = _login_locked_remaining(ip)
+        if locked > 0:
+            return render_template(
+                'login.html',
+                error=f'失败次数过多，请 {locked} 秒后再试'
+            ), 429
+
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
         auth = settings.get('auth', {})
         if username == auth.get('username') and auth.get('password_hash') \
                 and check_password_hash(auth['password_hash'], password):
+            _reset_login_attempts(ip)
             session['logged_in'] = True
             return redirect('/')
+        _record_login_fail(ip)
         return render_template('login.html', error='用户名或密码错误')
 
     if session.get('logged_in'):

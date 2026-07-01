@@ -23,7 +23,7 @@
 ### 交互与筛选
 - 🔄 **自动刷新**：支持手动刷新，可设置 10s / 30s / 60s 自动刷新间隔（带倒计时）
 - 🔌 **端口跳转**：点击端口号直接跳转 `http(s)://地址:端口`，支持内网/外网地址切换
-- 🔐 **登录鉴权**：可选会话登录保护，用户名/密码在应用设置中配置
+- 🔐 **登录鉴权**：可选会话登录保护，用户名/密码在「设置 → 应用设置」中配置
 - 🎯 **智能排序**：支持按端口升/降序、服务名、来源多种排序方式
 - 🔎 **搜索过滤**：按端口、进程、服务名、容器名、协议搜索
 - 🔌 **协议过滤**：支持 TCP/UDP 协议过滤与统计切换
@@ -32,6 +32,7 @@
 - 👁️ **端口隐藏**：支持隐藏不需要显示的端口，提供「已隐藏」标签页查看
 - 📋 **批量操作**：支持批量隐藏/取消隐藏端口范围
 - 📥 **数据导出**：一键导出当前端口列表为 CSV（UTF-8，中文无乱码）
+- 🏷️ **端口命名**：为端口设置中文服务名与类型（宿主机 / Docker），未知端口卡片一键添加；也可在「设置 → 端口配置」中直接编辑 JSON 批量维护
 
 ---
 
@@ -78,10 +79,12 @@ docker run -d \
   --name dockports \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v ./config:/app/config \
+  -v "$(pwd)/config:/app/config" \
   -e DOCKPORTS_PORT=7577 \
   orsoman/dockports:latest
 ```
+
+> 如需在宿主机端口卡片显示占用进程名，额外加 `--pid host --privileged`（安全提示见下文）。
 
 ---
 
@@ -164,6 +167,14 @@ docker run ... orsoman/dockports:latest --debug
 ### `GET /api/refresh`
 
 重连 Docker 客户端并刷新端口信息
+
+### 端口配置（服务名映射）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/config` | 获取解析后的端口→服务名配置 |
+| `GET` | `/api/config/raw` | 获取 `config.json` 原始内容（供设置界面编辑） |
+| `POST` | `/api/config` | 保存整份配置；或传 `{port, service_name, service_type}` 命名单个端口 |
 
 ### `GET/POST /api/settings`
 

@@ -314,6 +314,26 @@ def get_effective_host():
     """获取用于端口跳转的有效内网地址（手动设置优先，否则自动检测）"""
     return (settings.get('intranet_host') or '').strip() or detect_intranet_ip()
 
+# 暴露面分级：public(任意网卡可达) > lan(绑定具体网卡) > local(仅本机)
+EXPOSURE_RANK = {'local': 0, 'lan': 1, 'public': 2}
+
+def classify_exposure(bind_ips):
+    """根据绑定 IP 集合判断端口暴露面。
+    - 含 0.0.0.0 / :: → public（监听所有网卡，局域网/公网可达，取决于防火墙）
+    - 仅 127.0.0.1 / ::1 → local（仅本机）
+    - 其它具体网卡 IP → lan（绑定到某网卡）
+    空集合返回 None（未知，如 host 网络推断端口）。
+    """
+    ips = set(bind_ips or [])
+    if not ips:
+        return None
+    if '0.0.0.0' in ips or '::' in ips:
+        return 'public'
+    # 整个 127.0.0.0/8 与 ::1 都是回环，仅本机可达
+    if all(ip.startswith('127.') or ip == '::1' for ip in ips):
+        return 'local'
+    return 'lan'
+
 # 初始化配置
 init_config()
 init_settings()
@@ -403,7 +423,8 @@ class PortMonitor:
                                     'container_name': container_name,
                                     'container_port': container_port,
                                     'image': image_name,
-                                    'type': 'docker_mapped'
+                                    'type': 'docker_mapped',
+                                    'bind_ip': (binding.get('HostIp') or '')
                                 })
                                 logger.debug(f"发现映射端口: {host_port} -> {container_name}:{container_port}")
 
@@ -429,6 +450,7 @@ class PortMonitor:
         """获取主机端口使用情况（简化版本，仅检测端口占用）"""
         port_info = {}
         port_protocols = {}  # 用于跟踪每个端口的协议和IP版本
+        port_bind_ips = {}   # 用于跟踪每个端口绑定的所有 IP（暴露面分析）
         
         # 获取host网络容器信息
         host_containers = self.get_host_network_containers_cached()
@@ -492,6 +514,9 @@ class PortMonitor:
                 port_protocols[port]['protocols'].add(protocol_type)
                 port_protocols[port]['ip_versions'].add(ip_version)
 
+                # 记录该端口绑定的 IP（用于暴露面分析）
+                port_bind_ips.setdefault(port, set()).add(conn.laddr.ip)
+
                 # 如果端口已存在，更新信息
                 if port not in port_info:
                     port_info[port] = {
@@ -529,9 +554,12 @@ class PortMonitor:
                 # 去重并排序
                 protocol_list = sorted(list(set(protocol_list)))
                 info['protocol'] = ','.join(protocol_list)
-                
+
                 # 移除单独的ip_version字段，信息已包含在protocol中
                 del info['ip_version']
+
+                # 附上绑定 IP 列表（暴露面分析用）
+                info['bind_ips'] = sorted(port_bind_ips.get(port, set()))
 
         except Exception as e:
             logger.error(f"获取主机端口信息失败: {e}")
@@ -802,7 +830,18 @@ class PortMonitor:
         """分析端口使用情况并生成可视化数据"""
         docker_ports = self.get_docker_ports()
         host_ports_info = self.get_host_ports()
-        
+
+        # 汇总每个端口的绑定 IP（暴露面分析）：来自宿主机监听 + Docker 端口映射
+        bind_ips_map = {}
+        for p, info in host_ports_info.items():
+            if info.get('bind_ips'):
+                bind_ips_map.setdefault(p, set()).update(info['bind_ips'])
+        for pi in docker_ports:
+            if pi.get('port'):
+                # Docker HostIp 为空字符串表示监听所有网卡，归一化为 0.0.0.0
+                ip = pi.get('bind_ip') or '0.0.0.0'
+                bind_ips_map.setdefault(pi['port'], set()).add(ip)
+
         # 初始化端口卡片列表
         port_cards = []
         
@@ -888,7 +927,9 @@ class PortMonitor:
                     'image': docker_info.get('image', ''),
                     'container_port': docker_info['container_port'],
                     'connection_count': host_ports_info.get(port, {}).get('connection_count', 0),
-                    'service_name': config_service_name or docker_info['container_name']
+                    'service_name': config_service_name or docker_info['container_name'],
+                    'exposure': classify_exposure(bind_ips_map.get(port)),
+                    'bind_ips': sorted(bind_ips_map.get(port, set()))
                 }
             else:
                 # 系统服务端口
@@ -918,7 +959,9 @@ class PortMonitor:
                     'connection_count': host_info.get('connection_count', 0),
                     'is_host_network': is_host_container,
                     'process_name': host_info.get('process_name'),
-                    'pid': host_info.get('pid')
+                    'pid': host_info.get('pid'),
+                    'exposure': classify_exposure(bind_ips_map.get(port)),
+                    'bind_ips': sorted(bind_ips_map.get(port, set()))
                 }
             port_data_list.append(card_data)
         
@@ -944,6 +987,14 @@ class PortMonitor:
                     range_start_port = consecutive_unknown[0]['port']
                     range_end_port = consecutive_unknown[-1]['port']
                     
+                    # 合并区间的暴露面取其中「最暴露」的一档
+                    merged_exposure = None
+                    for cu in consecutive_unknown:
+                        e = cu.get('exposure')
+                        if e and (merged_exposure is None or
+                                  EXPOSURE_RANK[e] > EXPOSURE_RANK[merged_exposure]):
+                            merged_exposure = e
+
                     # 创建合并的端口卡片
                     merged_card = {
                         'type': 'unknown_range',
@@ -954,7 +1005,8 @@ class PortMonitor:
                         'protocol': consecutive_unknown[0]['protocol'],
                         'service_name': '未知服务',
                         'container': consecutive_unknown[0].get('container'),
-                        'is_host_network': consecutive_unknown[0].get('is_host_network', False)
+                        'is_host_network': consecutive_unknown[0].get('is_host_network', False),
+                        'exposure': merged_exposure
                     }
                     port_cards.append(merged_card)
                     

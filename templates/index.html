@@ -1364,6 +1364,20 @@
             line-height: 1.3;
             word-break: break-all;
         }
+        /* 暴露面徽章 */
+        .exp-badge {
+            font-size: 0.68rem;
+            padding: 0.05rem 0.4rem;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        .exp-badge.exp-public { background: #fed7d7; color: #c53030; }
+        .exp-badge.exp-lan    { background: #feebc8; color: #b7791f; }
+        .exp-badge.exp-local  { background: #c6f6d5; color: #2f855a; }
+        body.dark .exp-badge.exp-public { background: #742a2a; color: #feb2b2; }
+        body.dark .exp-badge.exp-lan    { background: #744210; color: #fbd38d; }
+        body.dark .exp-badge.exp-local  { background: #22543d; color: #9ae6b4; }
         .pc-tags {
             display: flex;
             align-items: center;
@@ -1636,6 +1650,15 @@
                                 <option value="source">来源</option>
                             </select>
                         </div>
+                        <div class="sort-control">
+                            <label for="exposureSelect">暴露:</label>
+                            <select id="exposureSelect" class="toolbar-select" onchange="applyExposureFilter(this.value)">
+                                <option value="all">全部</option>
+                                <option value="public">🌐 公开</option>
+                                <option value="lan">🏠 局域网</option>
+                                <option value="local">🔒 仅本机</option>
+                            </select>
+                        </div>
                         <div class="auto-refresh-group">
                             <select id="autoRefreshInterval" class="toolbar-select" onchange="setAutoRefresh(this.value)">
                                 <option value="0">自动刷新: 关闭</option>
@@ -1750,6 +1773,7 @@
         let currentFilter = 'all';
         let currentView = 'card';
         let currentProtocol = 'all'; // 当前协议过滤器
+        let currentExposure = 'all'; // 暴露面过滤器：all/public/lan/local
         let showReserved = false; // 是否显示「已停止容器声明的预留端口」
         let searchTimeout = null;
         let hostIp = ''; // 内网地址，用于端口卡片跳转链接
@@ -1952,6 +1976,11 @@
                 if (currentContainerFilter !== null) {
                     const cardContainer = card.container || card.container_name;
                     if (cardContainer !== currentContainerFilter) return false;
+                }
+
+                // 按暴露面筛选（仅作用于有暴露面的端口卡；gap/reserved 等无 exposure 时排除）
+                if (currentExposure !== 'all') {
+                    if (card.exposure !== currentExposure) return false;
                 }
 
                 switch (currentFilter) {
@@ -2211,6 +2240,29 @@
         }
 
         /**
+         * 渲染端口暴露面徽章
+         * public=监听所有网卡(公网/局域网可达) / lan=绑定具体网卡 / local=仅本机
+         */
+        function renderExposureBadge(card) {
+            const e = card.exposure;
+            if (!e) return '';
+            const tip = (card.bind_ips && card.bind_ips.length) ? card.bind_ips.join(', ') : '';
+            const map = {
+                public: ['exp-public', '🌐 公开', '监听所有网卡（局域网/公网可达，取决于防火墙）'],
+                lan:    ['exp-lan', '🏠 局域网', '绑定到具体网卡'],
+                local:  ['exp-local', '🔒 仅本机', '仅 127.0.0.1，外部不可达']
+            };
+            const m = map[e];
+            if (!m) return '';
+            return `<span class="exp-badge ${m[0]}" title="${m[2]}${tip ? ' — ' + tip : ''}">${m[1]}</span>`;
+        }
+
+        function applyExposureFilter(value) {
+            currentExposure = value;
+            displayPorts(filterPorts(portsData));
+        }
+
+        /**
          * 构建端口跳转链接（内网/外网地址 + 端口）
          * 加密端口(443/8443/9443)用 https，其余 http
          * 选择外网但未配置外网地址时，回退到内网地址
@@ -2368,6 +2420,7 @@
                         ${card.reserved_by && card.reserved_by.length ? `<div class="pc-warn" title="以下已停止容器也声明了此端口，启动会撞端口">⚠ 停止容器也声明: ${card.reserved_by.join(', ')}</div>` : ''}
                         <div class="port-card-footer">
                             <div class="pc-tags">
+                                ${renderExposureBadge(card)}
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                                 ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
                             </div>
@@ -2404,6 +2457,7 @@
                                  </div>
                              </div>
                              <div style="display: flex; gap: 0.5rem; align-items: center; height: 24px;">
+                                 ${renderExposureBadge(card)}
                                  ${card.connection_count ? `<span class="conn-count" title="活跃连接数">🔗 ${card.connection_count}</span>` : ''}
                                  ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                                  ${isUnknownService ? `<button class="add-port-btn list-add-btn" onclick="editPortName(${card.port})" title="添加端口到配置文件">+</button>` : ''}
@@ -2458,6 +2512,7 @@
                         </div>
                         <div class="port-card-footer">
                             <div class="pc-tags">
+                                ${renderExposureBadge(card)}
                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                             </div>
                             <div class="port-card-actions">
@@ -2798,7 +2853,7 @@
                 showMessage('没有可导出的数据', 'error');
                 return;
             }
-            const rows = [['类型', '端口', '来源', '协议', '服务名称', '容器', '镜像', '占用进程', '连接数']];
+            const rows = [['类型', '端口', '来源', '协议', '暴露面', '服务名称', '容器', '镜像', '占用进程', '连接数']];
             sortCards(filtered.port_cards).forEach(card => {
                 let portStr = '';
                 let typeStr = '已用';
@@ -2813,11 +2868,13 @@
                     portStr = card.port;
                     typeStr = '预留(已停止)';
                 }
+                const expMap = { public: '公开', lan: '局域网', local: '仅本机' };
                 rows.push([
                     typeStr,
                     portStr,
                     card.source || '-',
                     (card.protocol || '-'),
+                    (expMap[card.exposure] || '-'),
                     (card.service_name || '').replace(/"/g, '""'),
                     (card.container || '').replace(/"/g, '""'),
                     (card.image || '').replace(/"/g, '""'),

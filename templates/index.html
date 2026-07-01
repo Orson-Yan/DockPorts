@@ -2756,7 +2756,15 @@
 
         function setContainerFilter(name) {
             currentContainerFilter = name;
+            // 选中具体容器时，端口分类回到「全部」，避免停在「系统/容器」分类上看不到该容器的端口
+            if (name !== null) {
+                currentFilter = 'all';
+            }
             updateContainerFilterList(portsData.docker_container_names || []);
+            // 同步端口分类标签高亮（仅作用于分类标签，不影响容器列表项）
+            document.querySelectorAll('.tab-link[data-filter]').forEach(link => {
+                link.classList.toggle('active', link.getAttribute('data-filter') === currentFilter);
+            });
             displayPorts(filterPorts(portsData));
         }
 
